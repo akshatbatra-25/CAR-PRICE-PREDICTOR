@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quantum Price Predictor - Login</title>
+  <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css'>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  
+  <!-- Three.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    /* Override body padding for login page */
+    body {
+      margin: 0;
+      padding: 0 !important;
+      overflow-x: hidden;
+      overflow-y: auto; /* Allow scrolling for content */
+    }
+
+    /* Canvas particle background */
+    #c {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      opacity: 0.5; /* Dim the background */
+      pointer-events: none;
+    }
+
+    /* Dark overlay to dim canvas more */
+    #c::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Login page specific styles */
+    .login-page-container {
+      min-height: 100vh;
+      padding: 100px 20px 60px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+      background: transparent; /* Remove gradient, canvas will show through */
+    }
+
+    .login-wrapper-page {
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Navigation */
+    .login-page-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(10, 18, 26, 0.9);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(0, 220, 255, 0.2);
+      z-index: 1000;
+      padding: 15px 0;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .login-page-nav-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .login-page-logo {
+      font-size: 1.3rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #00ffcc, #0088ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .login-page-nav-links {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .login-page-nav-links a {
+      color: #9fb9d6;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .login-page-nav-links a:hover {
+      color: #00ffcc;
+      transform: translateY(-2px);
+    }
+
+    /* Notification styles */
+    #notification-container {
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .notification {
+      background: linear-gradient(135deg, rgba(10, 18, 26, 0.95), rgba(6, 10, 14, 0.95));
+      border: 1px solid rgba(69, 243, 255, 0.3);
+      border-radius: 12px;
+      padding: 16px 20px;
+      min-width: 300px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(69, 243, 255, 0.2);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      animation: slideInRight 0.4s ease-out;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .notification::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #45f3ff, #ff2770);
+      animation: progressBar 3s linear;
+    }
+
+    .notification.success {
+      border-color: rgba(69, 243, 255, 0.5);
+    }
+
+    .notification.error {
+      border-color: rgba(255, 77, 77, 0.5);
+    }
+
+    .notification.info {
+      border-color: rgba(255, 193, 7, 0.5);
+    }
+
+    .notification-icon {
+      font-size: 24px;
+      animation: bounce 0.6s ease-in-out;
+    }
+
+    .notification-content {
+      flex: 1;
+    }
+
+    .notification-title {
+      color: #eaf6ff;
+      font-weight: 600;
+      font-size: 14px;
+      margin: 0 0 4px 0;
+    }
+
+    .notification-message {
+      color: #9fb9d6;
+      font-size: 13px;
+      margin: 0;
+    }
+
+    .notification-close {
+      background: transparent;
+      border: none;
+      color: #9fb9d6;
+      cursor: pointer;
+      font-size: 18px;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .notification-close:hover {
+      color: #fff;
+    }
+
+    @keyframes slideInRight {
+      from {
+        opacity: 0;
+        transform: translateX(100px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes progressBar {
+      0% {
+        width: 100%;
+      }
+      100% {
+        width: 0;
+      }
+    }
+
+    @keyframes bounce {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-10px);
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .login-page-nav-links {
+        gap: 15px;
+      }
+
+      .login-page-nav-links a {
+        font-size: 0.85rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .login-page-container {
+        padding: 80px 10px 40px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="top-nav">
+    <a href="/"><i class="fas fa-brain"></i> Quantum AI</a>
+    <a href="/predict-page"><i class="fas fa-calculator"></i> Predict</a>
+    <a href="/search-page"><i class="fas fa-search"></i> Search</a>
+    <a href="/analytics-page"><i class="fas fa-chart-line"></i> Analytics</a>
+    <a href="/login-page" id="login-link"><i class="fas fa-user"></i> Login</a>
+    <a href="/app" id="dashboard-link" style="display: none;"><i class="fas fa-th-large"></i> Dashboard</a>
+  </nav>
+
+  <!-- Particle Background Canvas -->
+  <canvas id="c"></canvas>
+
+  <!-- Notification Container -->
+  <div id="notification-container"></div>
+
+  <!-- Main Content -->
+  <div class="login-page-container">
+    <div class="login-wrapper-page">
+      <div class="box-container">
+        <!-- Login Form Box -->
+        <div id="loginFormContainer" class="box" style="z-index: 10;">
+          <div class="login">
+            <div class="loginBx">
+              <h2>
+                <i class="fas fa-right-to-bracket"></i> Login
+                <span class="car-emoji">🚗</span>
+              </h2>
+              <div class="login-form-content">
+                <div id="login-status-message" class="login-status-message" style="display: none;"></div>
+                
+                <input type="text" id="username" placeholder="Username or Email">
+                <input type="password" id="password" placeholder="Password">
+                
+                <button type="button" onclick="handleLogin()">Sign in</button>
+                
+                <div class="group">
+                  <a href="#" onclick="event.preventDefault(); alert('Forgot password functionality coming soon!'); return false;">Forgot Password</a>
+                  <a href="#" onclick="showSignup(); return false;">Sign up</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Signup Form Box (Hidden by default, will appear when toggled) -->
+        <div id="signupFormContainer" class="box" style="display: none; z-index: 10;">
+          <div class="login">
+            <div class="loginBx">
+              <h2>
+                <i class="fas fa-user-plus"></i> Register
+                <span class="car-emoji">🚗</span>
+              </h2>
+              <div class="login-form-content">
+                <div id="signup-status-message" class="login-status-message" style="display: none;"></div>
+
+                <input type="text" id="signup_username" placeholder="Choose a Username">
+                <input type="email" id="signup_email" placeholder="Enter Email">
+                <input type="password" id="signup_password" placeholder="Create Password">
+                <input type="password" id="signup_confirm_password" placeholder="Confirm Password">
+                
+                <button type="button" onclick="handleSignup()">Sign Up</button>
+                
+                <div class="group">
+                  <a href="#" onclick="showLogin(); return false;" style="color: #45f3ff;">Back to Login</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================
+    // FIREBASE CONFIGURATION
+    // ============================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyBoW_AjIvjDhor7ZBz05521gRZ_t7NpT5M",
+      authDomain: "carpricepredictor-20447.firebaseapp.com",
+      projectId: "carpricepredictor-20447",
+      storageBucket: "carpricepredictor-20447.firebasestorage.app",
+      messagingSenderId: "428895841503",
+      appId: "1:428895841503:web:ecf3c3fa74b0f770068d6a",
+      measurementId: "G-8CJ1FTVQ0E"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+
+    // Initialize services
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // ============================================
+    // NOTIFICATION SYSTEM
+    // ============================================
+    function showNotification(title, message, type = 'success') {
+      const container = document.getElementById('notification-container');
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      
+      const icons = {
+        success: '🚗',
+        error: '❌',
+        info: 'ℹ️'
+      };
+      
+      notification.innerHTML = `
+        <div class="notification-icon">${icons[type] || icons.success}</div>
+        <div class="notification-content">
+          <div class="notification-title">${title}</div>
+          <div class="notification-message">${message}</div>
+        </div>
+        <button class="notification-close" onclick="this.parentElement.remove()">&times;</button>
+      `;
+      
+      container.appendChild(notification);
+      
+      // Auto remove after 3 seconds
+      setTimeout(() => {
+        if (notification.parentElement) {
+          notification.style.animation = 'slideInRight 0.4s ease-out reverse';
+          setTimeout(() => notification.remove(), 400);
+        }
+      }, 3000);
+    }
+
+    // ============================================
+    // AUTHENTICATION FUNCTIONS
+    // ============================================
+    
+    // Login functionality with Firebase
+    async function handleLogin() {
+      const email = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      
+      if (!email || !password) {
+        showNotification('Login Failed', 'Please enter both email and password', 'error');
+        return;
+      }
+      
+      try {
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        // Clear the form
+        document.getElementById('username').value = '';
+        document.getElementById('password').value = '';
+        
+        // Store user info
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('currentUser', user.email);
+        localStorage.setItem('currentUserId', user.uid);
+        
+        // Immediately update navigation to show dashboard button
+        updateNavigation();
+        
+        // Show success notification
+        showNotification('Login Successful! 🎉', `Welcome back, ${user.email}!`);
+        
+        // Redirect to main app
+        setTimeout(() => {
+          window.location.href = '/app';
+        }, 1500);
+      } catch (error) {
+        console.error('Login error:', error);
+        let errorMessage = 'Login failed. Please try again.';
+        if (error.code === 'auth/user-not-found') {
+          errorMessage = 'User not found. Please sign up first.';
+        } else if (error.code === 'auth/wrong-password') {
+          errorMessage = 'Incorrect password. Please try again.';
+        } else if (error.code === 'auth/invalid-email') {
+          errorMessage = 'Invalid email format.';
+        } else if (error.code === 'auth/invalid-login-credentials') {
+          errorMessage = 'Invalid email or password. Please check your credentials and try again, or sign up if you don\'t have an account.';
+        } else if (error.code === 'auth/too-many-requests') {
+          errorMessage = 'Too many failed attempts. Please try again later.';
+        }
+        showNotification('Login Failed', errorMessage, 'error');
+      }
+    }
+
+    // Signup functionality with Firebase
+    async function handleSignup() {
+      const username = document.getElementById('signup_username').value;
+      const email = document.getElementById('signup_email').value;
+      const password = document.getElementById('signup_password').value;
+      const confirmPassword = document.getElementById('signup_confirm_password').value;
+      
+      if (!username || !email || !password || !confirmPassword) {
+        showNotification('Signup Failed', 'Please fill in all fields', 'error');
+        return;
+      }
+      
+      if (password !== confirmPassword) {
+        showNotification('Signup Failed', 'Passwords do not match', 'error');
+        return;
+      }
+      
+      if (password.length < 6) {
+        showNotification('Signup Failed', 'Password must be at least 6 characters long', 'error');
+        return;
+      }
+      
+      try {
+        // Create user with Firebase Authentication
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+        
+        // Save additional user info to Firestore
+        await db.collection('users').doc(user.uid).set({
+          username: username,
+          email: email,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        // Clear the form
+        document.getElementById('signup_username').value = '';
+        document.getElementById('signup_email').value = '';
+        document.getElementById('signup_password').value = '';
+        document.getElementById('signup_confirm_password').value = '';
+        
+        showNotification('Account Created! 🎉', `Welcome, ${username}! Please login to continue`);
+        showLogin();
+      } catch (error) {
+        console.error('Signup error:', error);
+        let errorMessage = 'Signup failed. Please try again.';
+        if (error.code === 'auth/email-already-in-use') {
+          errorMessage = 'Email already in use. Please login instead.';
+        } else if (error.code === 'auth/invalid-email') {
+          errorMessage = 'Invalid email format.';
+        } else if (error.code === 'auth/weak-password') {
+          errorMessage = 'Password is too weak. Please use a stronger password.';
+        }
+        showNotification('Signup Failed', errorMessage, 'error');
+      }
+    }
+
+    // Show signup form
+    function showSignup() {
+      document.getElementById('loginFormContainer').style.display = 'none';
+      document.getElementById('signupFormContainer').style.display = 'block';
+    }
+
+    // Show login form
+    function showLogin() {
+      document.getElementById('signupFormContainer').style.display = 'none';
+      document.getElementById('loginFormContainer').style.display = 'block';
+    }
+
+    // Function to update navigation based on auth state
+    function updateNavigation() {
+      const loginLink = document.getElementById('login-link');
+      const dashboardLink = document.getElementById('dashboard-link');
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      
+      if (loginLink && dashboardLink) {
+        if (isLoggedIn) {
+          loginLink.style.display = 'none';
+          dashboardLink.style.display = 'flex';
+        } else {
+          loginLink.style.display = 'flex';
+          dashboardLink.style.display = 'none';
+        }
+      }
+    }
+
+    // Listen for Firebase authentication state changes
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        // User is signed in - redirect to app
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('currentUser', user.email);
+        localStorage.setItem('currentUserId', user.uid);
+      } else {
+        // User is signed out
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('currentUserId');
+      }
+      updateNavigation();
+    });
+
+
+    // Set active navigation link based on current page
+    function setActiveNavLink() {
+      const nav = document.querySelector('.top-nav');
+      if (!nav) return;
+      
+      const currentPath = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
+      const navLinks = nav.querySelectorAll('a');
+      
+      // Remove active class from all links
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+      });
+      
+      // Find and set active link based on pathname
+      navLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (!href) return;
+        
+        const hrefPath = href.toLowerCase().replace(/\/$/, '') || '/';
+        const isVisible = link.offsetParent !== null && 
+                         window.getComputedStyle(link).display !== 'none';
+        
+        if (!isVisible) return;
+        
+        // Exact path matching (highest priority)
+        if (hrefPath === currentPath) {
+          link.classList.add('active');
+          return;
+        }
+        
+        // Special case for home page - only match if currentPath is exactly '/' or ''
+        if (currentPath === '/' || currentPath === '') {
+          if (hrefPath === '/' || hrefPath === '' || href === '/') {
+            link.classList.add('active');
+            return;
+          }
+        }
+        
+        // Match /app with dashboard link
+        if (currentPath === '/app' && hrefPath === '/app') {
+          link.classList.add('active');
+          return;
+        }
+      });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      // Check if user is already logged in
+      const isLoggedIn = localStorage.getItem('isLoggedIn');
+      if (isLoggedIn === 'true') {
+        // Redirect to app if already logged in
+        window.location.href = '/app';
+      }
+      // Update navigation on page load
+      updateNavigation();
+      
+      // Set active nav link
+      setActiveNavLink();
+    });
+
+  </script>
+
+  <!-- Three.js Shader-Based Particle Background -->
+  <script>
+    const particleVertex = `
+      attribute float scale;
+      uniform float uTime;
+      void main() {
+        vec3 p = position;
+        float s = scale;
+        p.y += (sin(p.x + uTime) * 0.5) + (cos(p.y + uTime) * 0.1) * 2.0;
+        p.x += (sin(p.y + uTime) * 0.5);
+        s += (sin(p.x + uTime) * 0.5) + (cos(p.y + uTime) * 0.1) * 2.0;
+        vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = s * 15.0 * (1.0 / -mvPosition.z);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `;
+
+    const particleFragment = `
+      void main() {
+        gl_FragColor = vec4(1.0, 1.0, 1.0, 0.5);
+      }
+    `;
+
+    function lerp(start, end, amount) {
+      return (1 - amount) * start + amount * end;
+    }
+
+    class Canvas {
+      constructor() {
+        this.config = {
+          canvas: document.querySelector('#c'),
+          winWidth: window.innerWidth,
+          winHeight: window.innerHeight,
+          aspectRatio: window.innerWidth / window.innerHeight,
+          mouse: new THREE.Vector2(-10, -10)
+        };
+        this.onResize = this.onResize.bind(this);
+        this.onMouseMove = this.onMouseMove.bind(this);
+        this.animate = this.animate.bind(this);
+        this.initCamera();
+        this.initScene();
+        this.initRenderer();
+        this.initParticles();
+        this.bindEvents();
+        this.animate();
+      }
+
+      bindEvents() {
+        window.addEventListener('resize', this.onResize);
+        window.addEventListener('mousemove', this.onMouseMove, false);
+      }
+
+      initCamera() {
+        this.camera = new THREE.PerspectiveCamera(75, this.config.aspectRatio, 0.01, 1000);
+        this.camera.position.set(0, 6, 5);
+      }
+
+      initControls() {
+        this.controls = new OrbitControls(this.camera, this.config.canvas);
+      }
+
+      initScene() {
+        this.scene = new THREE.Scene();
+      }
+
+      initRenderer() {
+        this.renderer = new THREE.WebGLRenderer({
+          canvas: this.config.canvas,
+          antialias: true
+        });
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setSize(this.config.winWidth, this.config.winHeight);
+      }
+
+      initParticles() {
+        const gap = 0.3;
+        const amountX = 200;
+        const amountY = 200;
+        const particleNum = amountX * amountY;
+        const particlePositions = new Float32Array(particleNum * 3);
+        const particleScales = new Float32Array(particleNum);
+        let i = 0;
+        let j = 0;
+        for (let ix = 0; ix < amountX; ix++) {
+          for (let iy = 0; iy < amountY; iy++) {
+            particlePositions[i] = ix * gap - ((amountX * gap) / 2);
+            particlePositions[i + 1] = 0;
+            particlePositions[i + 2] = iy * gap - ((amountX * gap) / 2);
+            particleScales[j] = 1;
+            i += 3;
+            j++;
+          }
+        }
+        this.particleGeometry = new THREE.BufferGeometry();
+        this.particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+        this.particleGeometry.setAttribute('scale', new THREE.BufferAttribute(particleScales, 1));
+        this.particleMaterial = new THREE.ShaderMaterial({
+          transparent: true,
+          vertexShader: particleVertex,
+          fragmentShader: particleFragment,
+          uniforms: {
+            uTime: { type: 'f', value: 0 }
+          }
+        });
+        this.particles = new THREE.Points(this.particleGeometry, this.particleMaterial);
+        this.scene.add(this.particles);
+      }
+
+      render() {
+        this.camera.lookAt(this.scene.position);
+        this.renderer.render(this.scene, this.camera);
+      }
+
+      animate() {
+        this.particleMaterial.uniforms.uTime.value += 0.05;
+        requestAnimationFrame(this.animate.bind(this));
+        this.render();
+      }
+
+      onMouseMove(e) {
+        this.config.mouse.x = ( e.clientX / window.innerWidth ) * 2 - 1;
+        this.config.mouse.y = - ( e.clientY / window.innerHeight ) * 2 + 1;
+      }
+
+      onResize() {
+        this.config.winWidth = window.innerWidth;
+        this.config.winHeight = window.innerHeight;
+        this.camera.aspect = this.config.winWidth / this.config.winHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(this.config.winWidth, this.config.winHeight);
+      }
+    }
+
+    if (typeof THREE !== 'undefined') {
+      new Canvas();
+    }
+  </script>
+</body>
+</html>
+

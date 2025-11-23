@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quantum Price Predictor - Dashboard</title>
+  <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css'>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  
+  <!-- Three.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    /* Dashboard background */
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      overflow-y: auto; /* Allow scrolling for content */
+    }
+
+    /* Canvas particle background */
+    #c {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      opacity: 0.5; /* Dim the background */
+      pointer-events: none;
+    }
+
+    /* Dark overlay to dim canvas more */
+    #c::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Ensure content is above background */
+    .page {
+      position: relative;
+      z-index: 1;
+      background: transparent; /* Remove gradient, canvas will show through */
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navigation Bar -->
+<nav class="top-nav">
+    <a href="/"><i class="fas fa-brain"></i> Quantum AI</a>
+    <a href="/predict-page"><i class="fas fa-calculator"></i> Predict</a>
+    <a href="/search-page"><i class="fas fa-search"></i> Search</a>
+    <a href="/analytics-page"><i class="fas fa-chart-line"></i> Analytics</a>
+    <a href="/login-page" style="display: none;" id="login-link"><i class="fas fa-user"></i> Login</a>
+    <a href="/app" id="dashboard-link"><i class="fas fa-th-large"></i> Dashboard</a>
+</nav>
+
+<!-- Particle Background Canvas -->
+<canvas id="c"></canvas>
+
+<!-- Notification Container -->
+<div id="notification-container"></div>
+
+<!-- Main Content -->
+<main class="page">
+    <!-- Main app content inside card container -->
+    <section class="card-outer">
+        <div class="card-glow"></div>
+        <div class="card">
+            <header class="card-header">
+                <h1>Quantum Price Predictor <span class="gear">⚙️</span></h1>
+                <p class="lead">Dashboard - Your saved car predictions</p>
+                <hr class="divider">
+            </header>
+
+            <!-- Dashboard Page -->
+            <div id="dashboard-page" class="page-content active">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">My Dashboard <span class="gear">👤</span></h2>
+                    <button onclick="refreshDashboard()" class="btn-refresh" title="Refresh Dashboard">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                </div>
+                <div class="divider"></div>
+                <div id="dashboard-content">
+                    <p class="no-saved-cars">No saved cars yet. Start predicting to save your results!</p>
+                </div>
+                <div class="dashboard-footer">
+                    <button onclick="handleSignOut()" class="btn-signout">
+                        <i class="fas fa-sign-out-alt"></i> Sign Out
+                    </button>
+                </div>
+            </div>
+
+            <p class="credit">Powered by Quantum AI • Car Price Predictor 2025</p>
+        </div>
+    </section>
+</main>
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+    <symbol xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" id="home-icon">
+        <path d="M13.1428571,14.5 C13.6571429,14.5 14,14.175507 14,13.6887676 L14,6.38767551 C14,6.14430577 13.9142857,5.90093604 13.6571429,5.73868955 L8.51428571,1.6825273 C8.17142857,1.43915757 7.74285714,1.43915757 7.4,1.6825273 L2.25714286,5.73868955 C2.08571429,5.90093604 2,6.14430577 2,6.38767551 L2,13.6887676 C2,14.175507 2.34285714,14.5 2.85714286,14.5 L13.1428571,14.5 Z M5.42857143,12.8775351 L3.71428571,12.8775351 L3.71428571,6.79329173 L8,3.38611544 L12.2857143,6.79329173 L12.2857143,12.8775351 L10.5714286,12.8775351 L5.42857143,12.8775351 Z"></path>
+    </symbol>
+    <symbol xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" id="bookmark-icon">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M7 3H17C18.1 3 19 3.89999 19 5V21L12 18L5 21V5C5 3.89999 5.90002 3 7 3ZM12 15.82L17 18V5H7V18L12 15.82Z" />
+    </symbol>
+    <symbol xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" id="plus-icon">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.48 2 2 6.48001 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48001 17.52 2 12 2ZM11 7V11H7V13H11V17H13V13H17V11H13V7H11ZM4 12C4 16.41 7.59 20 12 20C16.41 20 20 16.41 20 12C20 7.59 16.41 4 12 4C7.59 4 4 7.59 4 12Z" />
+    </symbol>
+    <symbol xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 570" id="user-icon">
+        <path d="M313.6 304c-28.7 0-42.5 16-89.6 16-47.1 0-60.8-16-89.6-16C60.2 304 0 364.2 0 438.4V464c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48v-25.6c0-74.2-60.2-134.4-134.4-134.4zM400 464H48v-25.6c0-47.6 38.8-86.4 86.4-86.4 14.6 0 38.3 16 89.6 16 51.7 0 74.9-16 89.6-16 47.6 0 86.4 38.8 86.4 86.4V464zM224 288c79.5 0 144-64.5 144-144S303.5 0 224 0 80 64.5 80 144s64.5 144 144 144zm0-240c52.9 0 96 43.1 96 96s-43.1 96-96 96-96-43.1-96-96 43.1-96 96-96z" />
+    </symbol>
+    <symbol xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 568" id="settings-icon">
+        <path d="M487.4 315.7l-42.6-24.6c4.3-23.2 4.3-47 0-70.2l42.6-24.6c4.9-2.8 7.1-8.6 5.5-14-11.1-35.6-30-67.8-54.7-94.6-3.8-4.1-10-5.1-14.8-2.3L380.8 110c-17.9-15.4-38.5-27.3-60.8-35.1V25.8c0-5.6-3.9-10.5-9.4-11.7-36.7-8.2-74.3-7.8-109.2 0-5.5 1.2-9.4 6.1-9.4 11.7V75c-22.2 7.9-42.8 19.8-60.8 35.1L88.7 85.5c-4.9-2.8-11-1.9-14.8 2.3-24.7 26.7-43.6 58.9-54.7 94.6-1.7 5.4.6 11.2 5.5 14L67.3 221c-4.3 23.2-4.3 47 0 70.2l-42.6 24.6c-4.9 2.8-7.1 8.6-5.5 14 11.1 35.6 30 67.8 54.7 94.6 3.8 4.1 10 5.1 14.8 2.3l42.6-24.6c17.9 15.4 38.5 27.3 60.8 35.1v49.2c0 5.6 3.9 10.5 9.4 11.7 36.7 8.2 74.3 7.8 109.2 0 5.5-1.2 9.4-6.1 9.4-11.7v-49.2c22.2-7.9 42.8-19.8 60.8-35.1l42.6 24.6c4.9 2.8 11 1.9 14.8-2.3 24.7-26.7 43.6-58.9 54.7-94.6 1.5-5.5-.7-11.3-5.6-14.1zM256 336c-44.1 0-80-35.9-80-80s35.9-80 80-80 80 35.9 80 80-35.9 80-80 80z" />
+    </symbol>
+</svg>
+
+<script>
+// ============================================
+// FIREBASE CONFIGURATION
+// ============================================
+const firebaseConfig = {
+  apiKey: "AIzaSyBoW_AjIvjDhor7ZBz05521gRZ_t7NpT5M",
+  authDomain: "carpricepredictor-20447.firebaseapp.com",
+  projectId: "carpricepredictor-20447",
+  storageBucket: "carpricepredictor-20447.firebasestorage.app",
+  messagingSenderId: "428895841503",
+  appId: "1:428895841503:web:ecf3c3fa74b0f770068d6a",
+  measurementId: "G-8CJ1FTVQ0E"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+
+// Initialize services
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ============================================
+// END FIREBASE CONFIGURATION
+// ============================================
+
+// Function to update navigation based on auth state
+function updateNavigation() {
+    const loginLink = document.getElementById('login-link');
+    const dashboardLink = document.getElementById('dashboard-link');
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    
+    if (loginLink && dashboardLink) {
+        if (isLoggedIn) {
+            loginLink.style.display = 'none';
+            dashboardLink.style.display = 'flex';
+        } else {
+            loginLink.style.display = 'flex';
+            dashboardLink.style.display = 'none';
+        }
+    }
+}
+
+
+// Navigation System
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if user is logged in
+    const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+    if (!isLoggedIn) {
+        // Redirect to login if not logged in
+        window.location.href = '/login-page';
+        return;
+    }
+    
+    // Load dashboard if logged in
+    const currentUser = localStorage.getItem('currentUser');
+    loadSavedCars(currentUser);
+    
+    // Set active navigation link based on current page
+    function setActiveNavLink() {
+        const nav = document.querySelector('.top-nav');
+        if (!nav) return;
+        
+        const currentPath = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
+        const navLinks = nav.querySelectorAll('a');
+        
+        // Remove active class from all links
+        navLinks.forEach(link => {
+            link.classList.remove('active');
+        });
+        
+        // Find and set active link based on pathname
+        navLinks.forEach(link => {
+            const href = link.getAttribute('href');
+            if (!href) return;
+            
+            const hrefPath = href.toLowerCase().replace(/\/$/, '') || '/';
+            const isVisible = link.offsetParent !== null && 
+                             window.getComputedStyle(link).display !== 'none';
+            
+            if (!isVisible) return;
+            
+            // Exact path matching (highest priority)
+            if (hrefPath === currentPath) {
+                link.classList.add('active');
+                return;
+            }
+            
+            // Special case for home page - only match if currentPath is exactly '/' or ''
+            if (currentPath === '/' || currentPath === '') {
+                if (hrefPath === '/' || hrefPath === '' || href === '/') {
+                    link.classList.add('active');
+                    return;
+                }
+            }
+            
+            // Match /app with dashboard link
+            if (currentPath === '/app' && hrefPath === '/app') {
+                link.classList.add('active');
+                return;
+            }
+        });
+    }
+
+    // Initialize navigation
+    updateNavigation();
+    
+    // Set active nav link
+    setActiveNavLink();
+    
+    // Listen for Firebase authentication state changes
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            // User is signed in
+            localStorage.setItem('isLoggedIn', 'true');
+            localStorage.setItem('currentUser', user.email);
+            localStorage.setItem('currentUserId', user.uid);
+        } else {
+            // User is signed out - redirect to login
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('currentUserId');
+            window.location.href = '/login-page';
+        }
+        updateNavigation();
+    });
+});
+
+// Show notification
+function showNotification(title, message, type = 'success') {
+    const container = document.getElementById('notification-container');
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    
+    const icons = {
+        success: '🚗',
+        error: '❌',
+        info: 'ℹ️'
+    };
+    
+    notification.innerHTML = `
+        <div class="notification-icon">${icons[type] || icons.success}</div>
+        <div class="notification-content">
+            <div class="notification-title">${title}</div>
+            <div class="notification-message">${message}</div>
+        </div>
+        <button class="notification-close" onclick="this.parentElement.remove()">&times;</button>
+    `;
+    
+    container.appendChild(notification);
+    
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.style.animation = 'slideInRight 0.4s ease-out reverse';
+            setTimeout(() => notification.remove(), 400);
+        }
+    }, 3000);
+}
+
+// Load saved cars for user from Firebase
+async function loadSavedCars(username) {
+    const dashboardContent = document.getElementById('dashboard-content');
+    const userId = localStorage.getItem('currentUserId');
+    
+    if (!userId) {
+        dashboardContent.innerHTML = '<p class="no-saved-cars">No saved cars yet. Start predicting to save your results!</p>';
+        return;
+    }
+    
+    try {
+        // Load saved cars from Firestore
+        const savedCarsSnapshot = await db.collection('users').doc(userId).collection('savedCars').get();
+        
+        if (savedCarsSnapshot.empty) {
+            dashboardContent.innerHTML = '<p class="no-saved-cars">No saved cars yet. Start predicting to save your results!</p>';
+            return;
+        }
+        
+        // Display saved cars
+        dashboardContent.innerHTML = savedCarsSnapshot.docs.map((doc, index) => {
+            const car = doc.data();
+            return `
+                <div class="saved-car-card">
+                    <div class="saved-car-header">
+                        <h3>${car.company} ${car.model}</h3>
+                        <button onclick="removeSavedCar('${doc.id}')" class="btn-delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                    <div class="saved-car-details">
+                        <p><strong>Year:</strong> ${car.year}</p>
+                        <p><strong>Fuel Type:</strong> ${car.fuelType}</p>
+                        <p><strong>Kilometers:</strong> ${car.kms.toLocaleString()} km</p>
+                        <p class="saved-price"><strong>Predicted Price:</strong> ${car.price}</p>
+                        <p class="saved-date"><strong>Date:</strong> ${car.date}</p>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Error loading saved cars:', error);
+        dashboardContent.innerHTML = '<p class="no-saved-cars">Error loading saved cars. Please try again.</p>';
+    }
+}
+
+// Remove saved car from Firebase
+async function removeSavedCar(carId) {
+    const userId = localStorage.getItem('currentUserId');
+    if (!userId) return;
+    
+    try {
+        await db.collection('users').doc(userId).collection('savedCars').doc(carId).delete();
+        const currentUser = localStorage.getItem('currentUser');
+        loadSavedCars(currentUser);
+    } catch (error) {
+        console.error('Error removing saved car:', error);
+        showNotification('Error', 'Failed to remove car. Please try again.', 'error');
+    }
+}
+
+// Refresh dashboard
+function refreshDashboard() {
+    const currentUser = localStorage.getItem('currentUser');
+    if (!currentUser) {
+        alert('Please login to view dashboard');
+        return;
+    }
+    loadSavedCars(currentUser);
+}
+
+// Sign out functionality with Firebase
+async function handleSignOut() {
+    try {
+        // Sign out from Firebase
+        await auth.signOut();
+        
+        // Clear login status
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('currentUserId');
+        
+        showNotification('Signed Out', 'You have been signed out successfully');
+        
+        // Redirect to login page
+        setTimeout(() => {
+            window.location.href = '/login-page';
+        }, 1000);
+    } catch (error) {
+        console.error('Sign out error:', error);
+        showNotification('Error', 'Failed to sign out. Please try again.', 'error');
+    }
+}
+
+// Three.js Shader-Based Particle Background
+const particleVertex = `
+  attribute float scale;
+  uniform float uTime;
+  void main() {
+    vec3 p = position;
+    float s = scale;
+    p.y += (sin(p.x + uTime) * 0.5) + (cos(p.y + uTime) * 0.1) * 2.0;
+    p.x += (sin(p.y + uTime) * 0.5);
+    s += (sin(p.x + uTime) * 0.5) + (cos(p.y + uTime) * 0.1) * 2.0;
+    vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+    gl_PointSize = s * 15.0 * (1.0 / -mvPosition.z);
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`;
+
+const particleFragment = `
+  void main() {
+    gl_FragColor = vec4(1.0, 1.0, 1.0, 0.5);
+  }
+`;
+
+function lerp(start, end, amount) {
+  return (1 - amount) * start + amount * end;
+}
+
+class Canvas {
+  constructor() {
+    this.config = {
+      canvas: document.querySelector('#c'),
+      winWidth: window.innerWidth,
+      winHeight: window.innerHeight,
+      aspectRatio: window.innerWidth / window.innerHeight,
+      mouse: new THREE.Vector2(-10, -10)
+    };
+    this.onResize = this.onResize.bind(this);
+    this.onMouseMove = this.onMouseMove.bind(this);
+    this.animate = this.animate.bind(this);
+    this.initCamera();
+    this.initScene();
+    this.initRenderer();
+    this.initParticles();
+    this.bindEvents();
+    this.animate();
+  }
+
+  bindEvents() {
+    window.addEventListener('resize', this.onResize);
+    window.addEventListener('mousemove', this.onMouseMove, false);
+  }
+
+  initCamera() {
+    this.camera = new THREE.PerspectiveCamera(75, this.config.aspectRatio, 0.01, 1000);
+    this.camera.position.set(0, 6, 5);
+  }
+
+  initControls() {
+    this.controls = new OrbitControls(this.camera, this.config.canvas);
+  }
+
+  initScene() {
+    this.scene = new THREE.Scene();
+  }
+
+  initRenderer() {
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: this.config.canvas,
+      antialias: true
+    });
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setSize(this.config.winWidth, this.config.winHeight);
+  }
+
+  initParticles() {
+    const gap = 0.3;
+    const amountX = 200;
+    const amountY = 200;
+    const particleNum = amountX * amountY;
+    const particlePositions = new Float32Array(particleNum * 3);
+    const particleScales = new Float32Array(particleNum);
+    let i = 0;
+    let j = 0;
+    for (let ix = 0; ix < amountX; ix++) {
+      for (let iy = 0; iy < amountY; iy++) {
+        particlePositions[i] = ix * gap - ((amountX * gap) / 2);
+        particlePositions[i + 1] = 0;
+        particlePositions[i + 2] = iy * gap - ((amountX * gap) / 2);
+        particleScales[j] = 1;
+        i += 3;
+        j++;
+      }
+    }
+    this.particleGeometry = new THREE.BufferGeometry();
+    this.particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    this.particleGeometry.setAttribute('scale', new THREE.BufferAttribute(particleScales, 1));
+    this.particleMaterial = new THREE.ShaderMaterial({
+      transparent: true,
+      vertexShader: particleVertex,
+      fragmentShader: particleFragment,
+      uniforms: {
+        uTime: { type: 'f', value: 0 }
+      }
+    });
+    this.particles = new THREE.Points(this.particleGeometry, this.particleMaterial);
+    this.scene.add(this.particles);
+  }
+
+  render() {
+    this.camera.lookAt(this.scene.position);
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  animate() {
+    this.particleMaterial.uniforms.uTime.value += 0.05;
+    requestAnimationFrame(this.animate.bind(this));
+    this.render();
+  }
+
+  onMouseMove(e) {
+    this.config.mouse.x = ( e.clientX / window.innerWidth ) * 2 - 1;
+    this.config.mouse.y = - ( e.clientY / window.innerHeight ) * 2 + 1;
+  }
+
+  onResize() {
+    this.config.winWidth = window.innerWidth;
+    this.config.winHeight = window.innerHeight;
+    this.camera.aspect = this.config.winWidth / this.config.winHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(this.config.winWidth, this.config.winHeight);
+  }
+}
+
+if (typeof THREE !== 'undefined') {
+  new Canvas();
+}
+
+</script>
+
+</body>
+</html>
+

@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quantum Price Predictor - Home</title>
+  <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css'>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@600;700;800&display=swap" rel="stylesheet" />
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  
+  <style>
+    /* Override body padding for home page */
+    body {
+      padding: 0 !important;
+    }
+
+    /* Override for standalone home page */
+    .home-container {
+      min-height: 100vh;
+      background: radial-gradient(ellipse at 10% 10%, #071225 0%, transparent 20%),
+                  radial-gradient(ellipse at 90% 90%, #0a1222 0%, transparent 20%),
+                  linear-gradient(180deg, #071125 0%, #04060a 100%);
+      padding: 120px 20px 60px;
+    }
+
+    .home-wrapper {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Car-themed background - uses global styles from style.css */
+    /* The particles container now shows animated road lines and car silhouettes */
+
+    /* Navigation for home page */
+    .home-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(10, 18, 26, 0.9);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(0, 220, 255, 0.2);
+      z-index: 1000;
+      padding: 15px 0;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .home-nav-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .home-logo {
+      font-size: 1.5rem;
+      font-weight: 800;
+      font-family: 'Rajdhani', 'Inter', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #ff00ff, #00ffff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+      filter: drop-shadow(0 0 8px rgba(255, 0, 255, 0.6))
+              drop-shadow(0 0 15px rgba(0, 255, 255, 0.4));
+      transition: all 0.3s ease;
+    }
+    
+    .home-logo:hover {
+      filter: drop-shadow(0 0 12px rgba(255, 0, 255, 0.8))
+              drop-shadow(0 0 20px rgba(0, 255, 255, 0.6));
+      transform: scale(1.05);
+    }
+
+    .home-nav-links {
+      display: flex;
+      gap: 30px;
+      align-items: center;
+    }
+
+    .home-nav-links a {
+      color: #9fb9d6;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .home-nav-links a:hover {
+      color: #00ffcc;
+      transform: translateY(-2px);
+    }
+
+    /* Hero Section */
+    .hero-home {
+      text-align: center;
+      padding: 80px 20px 100px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-title-large {
+      font-size: 4.5rem;
+      font-weight: 900;
+      font-family: 'Rajdhani', 'Inter', sans-serif;
+      margin: 0 auto 30px;
+      animation: fadeInDown 1s ease-out, neonPulse 3s ease-in-out infinite;
+      line-height: 1.1;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      position: relative;
+      display: inline-block;
+      /* Neon Cyberpunk Glow Effect */
+      background: linear-gradient(135deg, #ff00ff 0%, #ff00cc 25%, #ff00ff 50%, #00ffff 75%, #00ccff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      background-size: 200% 200%;
+      animation: fadeInDown 1s ease-out, neonPulse 3s ease-in-out infinite 1s, gradientShift 4s ease infinite 1s;
+      /* Multi-layered neon glow */
+      filter: drop-shadow(0 0 10px rgba(255, 0, 255, 0.8)) 
+              drop-shadow(0 0 20px rgba(255, 0, 255, 0.6))
+              drop-shadow(0 0 30px rgba(0, 255, 255, 0.4))
+              drop-shadow(0 0 40px rgba(0, 255, 255, 0.3));
+    }
+    
+    @keyframes neonPulse {
+      0%, 100% {
+        filter: drop-shadow(0 0 10px rgba(255, 0, 255, 0.8)) 
+                drop-shadow(0 0 20px rgba(255, 0, 255, 0.6))
+                drop-shadow(0 0 30px rgba(0, 255, 255, 0.4))
+                drop-shadow(0 0 40px rgba(0, 255, 255, 0.3));
+      }
+      50% {
+        filter: drop-shadow(0 0 15px rgba(255, 0, 255, 1)) 
+                drop-shadow(0 0 25px rgba(255, 0, 255, 0.8))
+                drop-shadow(0 0 35px rgba(0, 255, 255, 0.6))
+                drop-shadow(0 0 50px rgba(0, 255, 255, 0.5));
+      }
+    }
+    
+    @keyframes gradientShift {
+      0% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+
+    .hero-subtitle-large {
+      font-size: 1.5rem;
+      color: #9fb9d6;
+      margin: 0 auto 40px;
+      max-width: 700px;
+      animation: fadeInUp 1s ease-out 0.3s backwards;
+      font-weight: 400;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      margin-top: 50px;
+      animation: fadeInUp 1s ease-out 0.6s backwards;
+      position: relative;
+      z-index: 10;
+    }
+    
+    .cta-section .hero-buttons {
+      position: relative;
+      z-index: 10;
+    }
+
+    .btn-hero-primary,
+    .btn-hero-secondary {
+      padding: 18px 40px;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      border: none;
+      position: relative;
+      z-index: 10;
+      pointer-events: auto;
+      cursor: pointer;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .btn-hero-primary {
+      background: linear-gradient(135deg, #00ffcc, #0088ff) !important;
+      background-clip: border-box !important;
+      -webkit-background-clip: border-box !important;
+      color: #0a0f1a;
+      box-shadow: 0 10px 40px rgba(0, 255, 204, 0.3);
+    }
+
+    .btn-hero-primary:hover {
+      transform: translateY(-5px) scale(1.05);
+      box-shadow: 0 20px 60px rgba(0, 255, 204, 0.4);
+    }
+
+    .btn-hero-secondary {
+      background: transparent;
+      color: #00ffcc;
+      border: 2px solid #00ffcc;
+      overflow: hidden;
+    }
+
+    .btn-hero-secondary:hover {
+      background: rgba(0, 255, 204, 0.1);
+      transform: translateY(-5px) scale(1.05);
+      box-shadow: 0 10px 30px rgba(0, 255, 204, 0.2);
+    }
+
+    /* Stats Section */
+    .stats-home {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 30px;
+      margin: 60px 0;
+    }
+
+    .stat-card-home {
+      background: linear-gradient(135deg, rgba(0, 220, 255, 0.25) 0%, rgba(0, 136, 255, 0.15) 100%);
+      backdrop-filter: blur(10px) saturate(180%);
+      -webkit-backdrop-filter: blur(10px) saturate(180%);
+      border: 1px solid rgba(0, 220, 255, 0.4);
+      border-radius: 20px;
+      padding: 40px 30px;
+      text-align: center;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+      overflow: hidden;
+      animation: slideInUp 0.8s ease-out backwards;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .stat-card-home::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 255, 204, 0.1), transparent);
+      transition: left 0.6s ease;
+    }
+
+    .stat-card-home:hover::before {
+      left: 100%;
+    }
+
+    .stat-card-home:hover {
+      transform: translateY(-10px);
+      border-color: rgba(0, 255, 204, 0.4);
+      box-shadow: 0 20px 40px rgba(0, 220, 255, 0.2);
+    }
+
+    .stat-number-home {
+      font-size: 3.5rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, #00ffcc, #0088ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 15px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-label-home {
+      color: #9fb9d6;
+      font-size: 1.1rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    /* Features Section */
+    .features-section {
+      margin: 100px 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .section-title {
+      text-align: center;
+      font-size: 2.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #00ffcc, #0088ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 20px;
+    }
+
+    .section-subtitle {
+      text-align: center;
+      color: #9fb9d6;
+      font-size: 1.2rem;
+      margin-bottom: 60px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .features-grid-home {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 30px;
+      margin-top: 60px;
+    }
+
+    .feature-card-home {
+      background: linear-gradient(135deg, rgba(0, 220, 255, 0.2) 0%, rgba(0, 136, 255, 0.12) 100%);
+      backdrop-filter: blur(12px) saturate(180%);
+      -webkit-backdrop-filter: blur(12px) saturate(180%);
+      border: 1px solid rgba(0, 220, 255, 0.35);
+      border-radius: 25px;
+      padding: 50px 35px;
+      text-align: center;
+      transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      position: relative;
+      overflow: hidden;
+      animation: slideInUp 0.8s ease-out backwards;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .feature-card-home:nth-child(1) { animation-delay: 0s; }
+    .feature-card-home:nth-child(2) { animation-delay: 0.1s; }
+    .feature-card-home:nth-child(3) { animation-delay: 0.2s; }
+    .feature-card-home:nth-child(4) { animation-delay: 0.3s; }
+    .feature-card-home:nth-child(5) { animation-delay: 0.4s; }
+    .feature-card-home:nth-child(6) { animation-delay: 0.5s; }
+
+    .feature-icon-large {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 30px;
+      background: linear-gradient(135deg, rgba(0, 255, 204, 0.2), rgba(0, 136, 255, 0.2));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 3px solid rgba(0, 255, 204, 0.3);
+      transition: all 0.5s ease;
+    }
+
+    .feature-icon-large i {
+      font-size: 2.5rem;
+      color: #00ffcc;
+      transition: all 0.5s ease;
+    }
+
+    .feature-card-home:hover .feature-icon-large {
+      transform: scale(1.1) rotate(5deg);
+      border-color: #00ffcc;
+      box-shadow: 0 10px 30px rgba(0, 255, 204, 0.3);
+    }
+
+    .feature-card-home:hover .feature-icon-large i {
+      transform: scale(1.2);
+    }
+
+    .feature-card-home h3 {
+      color: #eaf6ff;
+      font-size: 1.5rem;
+      margin-bottom: 15px;
+      font-weight: 700;
+    }
+
+    .feature-card-home p {
+      color: #9fb9d6;
+      font-size: 1rem;
+      line-height: 1.8;
+    }
+
+    .feature-card-home:hover {
+      transform: translateY(-15px) scale(1.02);
+      border-color: rgba(0, 255, 204, 0.5);
+      box-shadow: 0 30px 60px rgba(0, 220, 255, 0.2);
+    }
+
+    /* CTA Section */
+    .cta-section {
+      margin: 100px 0 60px;
+      padding: 80px 40px;
+      background: linear-gradient(135deg, rgba(0, 255, 204, 0.25) 0%, rgba(0, 136, 255, 0.2) 100%);
+      backdrop-filter: blur(15px) saturate(180%);
+      -webkit-backdrop-filter: blur(15px) saturate(180%);
+      border-radius: 30px;
+      border: 2px solid rgba(0, 255, 204, 0.4);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      animation: fadeIn 1s ease-out 1s backwards;
+      box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+    }
+
+    .cta-section::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(0, 255, 204, 0.2), transparent 70%);
+      animation: pulseGlow 4s ease-in-out infinite;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .cta-section h2 {
+      font-size: 3rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, #00ffcc, #0088ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .cta-section p {
+      font-size: 1.3rem;
+      color: #9fb9d6;
+      margin-bottom: 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 40px 20px;
+      border-top: 1px solid rgba(0, 255, 204, 0.4);
+      margin-top: 60px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .footer p {
+      background: linear-gradient(135deg, #00ffcc 0%, #9fb9d6 50%, #0088ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+      letter-spacing: 0.5px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero-title-large {
+        font-size: 3rem;
+      }
+
+      .hero-subtitle-large {
+        font-size: 1.2rem;
+      }
+
+      .stats-home {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+      }
+
+      .stat-number-home {
+        font-size: 2.5rem;
+      }
+
+      .features-grid-home {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-buttons {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .btn-hero-primary,
+      .btn-hero-secondary {
+        width: 100%;
+        max-width: 300px;
+        justify-content: center;
+      }
+
+      .home-nav-links {
+        gap: 15px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .hero-title-large {
+        font-size: 2.5rem;
+      }
+
+      .stats-home {
+        grid-template-columns: 1fr;
+      }
+
+      .stat-number-home {
+        font-size: 2rem;
+      }
+
+      .section-title {
+        font-size: 2rem;
+      }
+
+      .cta-section h2 {
+        font-size: 2rem;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="top-nav">
+    <a href="/"><i class="fas fa-brain"></i> Quantum AI</a>
+    <a href="/predict-page"><i class="fas fa-calculator"></i> Predict</a>
+    <a href="/search-page"><i class="fas fa-search"></i> Search</a>
+    <a href="/analytics-page"><i class="fas fa-chart-line"></i> Analytics</a>
+    <a href="/login-page" id="login-link"><i class="fas fa-user"></i> Login</a>
+    <a href="/app" id="dashboard-link" style="display: none;"><i class="fas fa-th-large"></i> Dashboard</a>
+  </nav>
+
+
+  <!-- Vanta.js Background -->
+  <div id="vanta-background" class="particles"></div>
+
+  <!-- Main Content -->
+  <div class="home-container">
+    <div class="home-wrapper">
+      <!-- Hero Section -->
+      <section class="hero-home">
+        <div class="hero-title-wrapper">
+          <h1 class="hero-title-large">Quantum Price Predictor</h1>
+          <div class="hero-gradient-line" style="margin: 30px auto;"></div>
+        </div>
+        <p class="hero-subtitle-large">
+          Your AI-powered car price prediction platform. Get instant, accurate resale estimates with advanced machine learning technology.
+        </p>
+        <div class="hero-badge" style="animation: fadeInUp 1s ease-out 0.9s backwards;">
+          <span class="badge-icon">🤖</span>
+          <span>Powered by Advanced ML Technology</span>
+        </div>
+        <div class="hero-buttons">
+          <a href="/predict-page" class="btn-hero-primary">
+            <i class="fas fa-rocket"></i> Get Started
+          </a>
+          <a href="#features" class="btn-hero-secondary">
+            <i class="fas fa-info-circle"></i> Learn More
+          </a>
+        </div>
+      </section>
+
+      <!-- Stats Section -->
+      <section class="stats-home">
+        <div class="stat-card-home">
+          <div class="stat-number-home" data-target="816">0</div>
+          <div class="stat-label-home">Car Records</div>
+        </div>
+        <div class="stat-card-home">
+          <div class="stat-number-home" data-target="25">0</div>
+          <div class="stat-label-home">Manufacturers</div>
+        </div>
+        <div class="stat-card-home">
+          <div class="stat-number-home" data-target="99">0</div>
+          <div class="stat-label-home">Accuracy</div>
+        </div>
+        <div class="stat-card-home">
+          <div class="stat-number-home" data-target="24">0</div>
+          <div class="stat-label-home">Real-time AI</div>
+        </div>
+      </section>
+
+      <!-- Features Section -->
+      <section class="features-section" id="features">
+        <h2 class="section-title">Why Choose Quantum AI?</h2>
+        <p class="section-subtitle">Experience the future of car price prediction with cutting-edge technology</p>
+
+        <div class="features-grid-home">
+          <div class="feature-card-home">
+            <div class="feature-icon-large">
+              <i class="fas fa-brain"></i>
+            </div>
+            <h3>AI-Powered Intelligence</h3>
+            <p>Random Forest ML algorithm trained on comprehensive market data with 99% accuracy</p>
+          </div>
+
+          <div class="feature-card-home">
+            <div class="feature-icon-large">
+              <i class="fas fa-rupee-sign"></i>
+            </div>
+            <h3>Smart Pricing</h3>
+            <p>India-specific adjustments for vehicle age restrictions and regional market trends</p>
+          </div>
+
+          <div class="feature-card-home">
+            <div class="feature-icon-large">
+              <i class="fas fa-lightbulb"></i>
+            </div>
+            <h3>Real-time Insights</h3>
+            <p>Personalized tips explaining your car's valuation in real-time</p>
+          </div>
+
+          <div class="feature-card-home">
+            <div class="feature-icon-large">
+              <i class="fas fa-shield-alt"></i>
+            </div>
+            <h3>Compliance Ready</h3>
+            <p>Auto-adjusts for Delhi/NCR/Mumbai scrappage rules automatically</p>
+          </div>
+
+          <div class="feature-card-home">
+            <div class="feature-icon-large">
+              <i class="fas fa-chart-line"></i>
+            </div>
+            <h3>Confidence Scores</h3>
+            <p>Know prediction reliability with smart ratings and price ranges</p>
+          </div>
+
+          <div class="feature-card-home">
+            <div class="feature-icon-large">
+              <i class="fas fa-database"></i>
+            </div>
+            <h3>Extensive Data</h3>
+            <p>25+ brands including Maruti, Hyundai, Toyota, Honda, Mahindra, and more</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA Section -->
+      <section class="cta-section">
+        <h2>Ready to Get Started?</h2>
+        <p>Click below to estimate your car's resale value instantly</p>
+        <div class="hero-buttons" style="animation: none;">
+          <a href="/predict-page" class="btn-hero-primary">
+            <i class="fas fa-rocket"></i> Start Predicting Now
+          </a>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="footer">
+        <p>© 2025 Quantum AI • Car Price Predictor • Powered by Advanced Machine Learning</p>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+
+    // Animated counter
+    function animateCounter(element, target, duration = 2000) {
+      let start = 0;
+      const increment = target / (duration / 16);
+      const timer = setInterval(() => {
+        start += increment;
+        if (start >= target) {
+          element.textContent = target;
+          clearInterval(timer);
+        } else {
+          element.textContent = Math.floor(start);
+        }
+      }, 16);
+    }
+
+    // Theme management
+    function changeTheme(themeName) {
+      if (document.body) {
+        document.body.classList.remove('dark-mode', 'light-mode', 'neon-mode');
+        document.body.classList.add(`${themeName}-mode`);
+      }
+      
+      // Update active state in dropdown (only if theme selector exists)
+      const themeOptions = document.querySelectorAll('.theme-option');
+      if (themeOptions.length > 0) {
+        themeOptions.forEach(option => {
+          option.classList.remove('active');
+        });
+        const activeOption = document.querySelector(`.theme-option[data-theme="${themeName}"]`);
+        if (activeOption) {
+          activeOption.classList.add('active');
+        }
+      }
+      
+      localStorage.setItem('selectedTheme', themeName);
+    }
+
+    // Function to update navigation based on auth state
+    function updateNavigation() {
+      const loginLink = document.getElementById('login-link');
+      const dashboardLink = document.getElementById('dashboard-link');
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      
+      if (loginLink && dashboardLink) {
+        if (isLoggedIn) {
+          loginLink.style.display = 'none';
+          dashboardLink.style.display = 'flex';
+        } else {
+          loginLink.style.display = 'flex';
+          dashboardLink.style.display = 'none';
+        }
+      }
+    }
+
+
+    // Set active navigation link based on current page
+    function setActiveNavLink() {
+      const nav = document.querySelector('.top-nav');
+      if (!nav) return;
+      
+      const currentPath = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
+      const navLinks = nav.querySelectorAll('a');
+      
+      // Remove active class from all links
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+      });
+      
+      // Find and set active link based on pathname
+      navLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (!href) return;
+        
+        const hrefPath = href.toLowerCase().replace(/\/$/, '') || '/';
+        const isVisible = link.offsetParent !== null && 
+                         window.getComputedStyle(link).display !== 'none';
+        
+        if (!isVisible) return;
+        
+        // Exact path matching (highest priority)
+        if (hrefPath === currentPath) {
+          link.classList.add('active');
+          return;
+        }
+        
+        // Special case for home page - only match if currentPath is exactly '/' or ''
+        if (currentPath === '/' || currentPath === '') {
+          if (hrefPath === '/' || hrefPath === '' || href === '/') {
+            link.classList.add('active');
+            return;
+          }
+        }
+        
+        // Match /app with dashboard link
+        if (currentPath === '/app' && hrefPath === '/app') {
+          link.classList.add('active');
+          return;
+        }
+      });
+    }
+
+    // Initialize counters when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+      const counters = document.querySelectorAll('.stat-number-home');
+      counters.forEach(counter => {
+        const target = parseInt(counter.getAttribute('data-target'));
+        animateCounter(counter, target);
+      });
+      
+      // Update navigation IMMEDIATELY from localStorage (fast check)
+      updateNavigation();
+      setActiveNavLink();
+      
+      // Load saved theme
+      const savedTheme = localStorage.getItem('selectedTheme') || 'dark';
+      changeTheme(savedTheme);
+      
+      // Initialize Firebase if not already initialized
+      let auth;
+      try {
+        if (typeof firebase !== 'undefined') {
+          const firebaseConfig = {
+            apiKey: "AIzaSyBoW_AjIvjDhor7ZBz05521gRZ_t7NpT5M",
+            authDomain: "carpricepredictor-20447.firebaseapp.com",
+            projectId: "carpricepredictor-20447",
+            storageBucket: "carpricepredictor-20447.firebasestorage.app",
+            messagingSenderId: "428895841503",
+            appId: "1:428895841503:web:ecf3c3fa74b0f770068d6a"
+          };
+          try {
+            firebase.app();
+          } catch (e) {
+            firebase.initializeApp(firebaseConfig);
+          }
+          auth = firebase.auth();
+          
+          // Listen for auth state changes - this fires immediately with current state
+          auth.onAuthStateChanged((user) => {
+            if (user) {
+              localStorage.setItem('isLoggedIn', 'true');
+              localStorage.setItem('currentUser', user.email);
+              localStorage.setItem('currentUserId', user.uid);
+            } else {
+              // Only clear localStorage if user is actually signed out
+              // Don't clear if it's just Firebase initializing
+              if (!localStorage.getItem('isLoggedIn')) {
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('currentUserId');
+              }
+            }
+            updateNavigation();
+            setActiveNavLink();
+          });
+        }
+      } catch (e) {
+        console.log('Firebase not available');
+      }
+    });
+  </script>
+
+  <!-- Vanta.js Dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.dots.min.js"></script>
+  
+  <script>
+    // Vanta.js DOTS Background - Initialize after libraries load
+    window.addEventListener('DOMContentLoaded', function() {
+      VANTA.DOTS({
+        el: "#vanta-background",
+        mouseControls: true,
+        touchControls: true,
+        gyroControls: false,
+        minHeight: 200.00,
+        minWidth: 200.00,
+        scale: 1.00,
+        scaleMobile: 1.00,
+        color: 0x00ffcc,
+        color2: 0x0088ff,
+        backgroundColor: 0x04060a,
+        size: 3.00,
+        spacing: 20.00,
+        showLines: true,
+        opacity: 0.4
+      });
+    });
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,2491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quantum Price Predictor - Predict</title>
+  <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/css/all.min.css'>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@600;700;800&display=swap" rel="stylesheet" />
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  
+  <!-- Three.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <style>
+    /* Override body padding for predict page */
+    body {
+      margin: 0;
+      padding: 0 !important;
+      overflow-x: hidden;
+      overflow-y: auto; /* Allow scrolling for content */
+    }
+
+    /* Canvas particle background */
+    #c {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      opacity: 0.5; /* Dim the background */
+      pointer-events: none;
+    }
+
+    /* Dark overlay to dim canvas more */
+    #c::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Predict page specific styles */
+    .predict-page-container {
+      min-height: auto;
+      background: transparent; /* Remove gradient, canvas will show through */
+      padding: 120px 20px 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .predict-wrapper {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      align-items: start;
+    }
+
+    /* Navigation for predict page */
+    .predict-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(10, 18, 26, 0.9);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(0, 220, 255, 0.2);
+      z-index: 1000;
+      padding: 15px 0;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .predict-nav-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .predict-logo {
+      font-size: 1.3rem;
+      font-weight: 800;
+      font-family: 'Rajdhani', 'Inter', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #ff00ff, #00ffff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      filter: drop-shadow(0 0 8px rgba(255, 0, 255, 0.6))
+              drop-shadow(0 0 15px rgba(0, 255, 255, 0.4));
+      transition: all 0.3s ease;
+    }
+    
+    .predict-logo:hover {
+      filter: drop-shadow(0 0 12px rgba(255, 0, 255, 0.8))
+              drop-shadow(0 0 20px rgba(0, 255, 255, 0.6));
+      transform: scale(1.05);
+    }
+
+    .predict-nav-links {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+
+    .predict-nav-links a {
+      color: #9fb9d6;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .predict-nav-links a:hover {
+      color: #00ffcc;
+      transform: translateY(-2px);
+    }
+
+    /* Card styling */
+    .predict-card {
+      background: rgba(10, 18, 26, 0.75); /* Less transparent */
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3) inset;
+      border: 1px solid rgba(0, 220, 255, 0.3);
+      position: relative;
+      overflow: visible;
+      height: fit-content;
+      min-height: fit-content;
+      box-sizing: border-box;
+    }
+    
+    .predict-card .predict-form,
+    .predict-card .result-area {
+      position: relative;
+      z-index: 1;
+      max-height: none;
+      overflow: visible;
+    }
+    
+    /* Make sure dropdown containers can appear above everything */
+    .form-field-container {
+      position: relative;
+    }
+    
+    .predict-card {
+      position: relative;
+    }
+    
+    /* Search input styling in dropdowns */
+    .dropdown-search {
+      transition: all 0.3s ease;
+    }
+    
+    .dropdown-search:focus {
+      border-color: #00ffcc !important;
+      background: rgba(10, 18, 26, 1) !important;
+      box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
+    }
+    
+    .dropdown-search::placeholder {
+      color: #6b8ca8;
+      opacity: 0.7;
+    }
+    
+    .search-item {
+      position: sticky;
+      top: 0;
+      background: rgba(10, 18, 26, 0.95);
+      z-index: 10;
+    }
+    
+    .predict-card::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    .predict-card::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+    }
+    
+    .predict-card::-webkit-scrollbar-thumb {
+      background: rgba(0, 220, 255, 0.3);
+      border-radius: 10px;
+    }
+    
+    .predict-card::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 220, 255, 0.5);
+    }
+
+    .predict-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 16px;
+      pointer-events: none;
+      z-index: 0;
+      box-shadow: 0 0 0 3px rgba(0, 220, 255, 0.8) inset,
+                  0 20px 60px rgba(0,0,0,0.8),
+                  0 0 40px rgba(0,220,255,0.3),
+                  0 0 22px rgba(0,220,255,0.5);
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+    }
+
+    .predict-header {
+      text-align: center;
+      margin-bottom: 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .predict-header h1 {
+      font-size: 32px;
+      letter-spacing: 3px;
+      margin-bottom: 8px;
+      font-weight: 900;
+      font-family: 'Rajdhani', 'Inter', sans-serif;
+      text-transform: uppercase;
+      position: relative;
+      display: inline-block;
+      /* Neon Cyberpunk Glow Effect */
+      background: linear-gradient(135deg, #ff00ff 0%, #ff00cc 25%, #00ffff 75%, #00ccff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      background-size: 200% 200%;
+      animation: gradientShift 4s ease infinite;
+      filter: drop-shadow(0 0 8px rgba(255, 0, 255, 0.7)) 
+              drop-shadow(0 0 15px rgba(255, 0, 255, 0.5))
+              drop-shadow(0 0 25px rgba(0, 255, 255, 0.4));
+    }
+    
+    @keyframes gradientShift {
+      0% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+      100% {
+        background-position: 0% 50%;
+      }
+    }
+
+    .predict-header .gear {
+      font-size: 18px;
+      opacity: 0.9;
+      margin-left: 6px;
+    }
+
+    .predict-header .lead {
+      color: #9fb9d6;
+      font-size: 14px;
+      margin-bottom: 0;
+    }
+
+    .predict-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+      margin: 20px 0 30px;
+    }
+
+    /* Form styles - using existing from index */
+    .predict-form {
+      display: block;
+      position: relative;
+      z-index: 1;
+    }
+
+    .form-label {
+      display: block;
+      color: #9fb9d6;
+      font-size: 13px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .form-field-container {
+      position: relative;
+      margin-bottom: 20px;
+      overflow: visible;
+      z-index: 1;
+    }
+    
+    /* Increase z-index when dropdown is active */
+    .form-field-container.dropdown-active,
+    .form-field-container:has(.sub-menu.show),
+    .form-field-container:has(.sub-menu[style*="block"]) {
+      z-index: 10001 !important;
+    }
+
+    /* Dropdown Menu Styles */
+    .menu {
+      background: rgba(0, 255, 204, 0.15);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(0, 255, 204, 0.3);
+      border-radius: 10px;
+      height: 50px;
+      overflow: visible;
+      position: relative;
+      cursor: pointer;
+      z-index: 100;
+    }
+
+    .menu ol {
+      list-style-type: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .menu > ol {
+      display: flex;
+      height: 100%;
+      align-items: center;
+    }
+
+    .menu > ol > .menu-item {
+      flex: 1;
+      padding: 0;
+      position: relative;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: visible;
+      z-index: 101;
+    }
+
+    .menu > ol > .menu-item:after {
+      content: '';
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      bottom: 8px;
+      left: calc(50% - 2px);
+      background: #00ffcc;
+      will-change: transform;
+      transform: scale(0);
+      transition: transform 0.2s ease;
+    }
+
+    .menu > ol > .menu-item:hover:after {
+      transform: scale(1);
+    }
+
+    .menu-item {
+      position: relative;
+      line-height: 50px;
+      text-align: center;
+      width: 100%;
+      overflow: visible;
+    }
+
+    .menu-item a {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      display: block;
+      color: #eaf6ff;
+      padding: 0 18px;
+      text-decoration: none;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+      z-index: 10;
+    }
+
+    .menu-item a:hover {
+      color: #00ffcc;
+    }
+    
+    .menu-trigger {
+      position: relative;
+      padding-right: 30px !important;
+      cursor: pointer;
+      user-select: none;
+    }
+    
+    .menu-trigger:hover {
+      color: #00ffcc !important;
+    }
+
+    .menu-trigger::after {
+      content: '▼';
+      position: absolute;
+      right: 15px;
+      font-size: 10px;
+      opacity: 0.6;
+      transition: transform 0.3s ease;
+      pointer-events: none;
+    }
+
+    .menu-item:hover > .menu-trigger::after {
+      transform: rotate(180deg);
+    }
+
+    .sub-menu {
+      position: absolute;
+      width: 100%;
+      top: calc(100% + 8px);
+      left: 0;
+      display: none;
+      z-index: 100000 !important;
+      background: rgba(10, 18, 26, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 255, 204, 0.5);
+      border-radius: 10px;
+      margin-top: 5px;
+      max-height: 400px;
+      overflow-y: auto;
+      overflow-x: visible;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6),
+                  0 0 0 1px rgba(255, 255, 255, 0.1) inset,
+                  0 0 20px rgba(0, 255, 204, 0.2);
+      min-width: 100%;
+      padding: 8px 0;
+      margin-bottom: 0;
+    }
+
+    /* Dropdowns only open on click, not hover */
+    .sub-menu[style*="block"],
+    .sub-menu.show {
+      display: block !important;
+    }
+
+    .sub-menu .menu-item {
+      padding: 0.75rem 0;
+      background: transparent;
+      opacity: 1;
+      transform-origin: top;
+      animation: enter 0.2s ease forwards;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .sub-menu .menu-item:last-child {
+      border-bottom: none;
+    }
+
+    .sub-menu .menu-item:nth-child(1) {
+      animation-duration: 0.2s;
+      animation-delay: 0s;
+    }
+
+    .sub-menu .menu-item:nth-child(2) {
+      animation-duration: 0.25s;
+      animation-delay: 0.05s;
+    }
+
+    .sub-menu .menu-item:nth-child(3) {
+      animation-duration: 0.3s;
+      animation-delay: 0.1s;
+    }
+
+    .sub-menu .menu-item:nth-child(4) {
+      animation-duration: 0.35s;
+      animation-delay: 0.15s;
+    }
+
+    .sub-menu .menu-item:nth-child(5) {
+      animation-duration: 0.4s;
+      animation-delay: 0.2s;
+    }
+    
+    .sub-menu .menu-item:nth-child(n+6) {
+      animation-duration: 0.25s;
+      animation-delay: 0.15s;
+    }
+
+    .sub-menu .menu-item:hover {
+      background: rgba(0, 255, 204, 0.3);
+    }
+
+    .sub-menu .menu-item a {
+      padding: 0.75rem 1.5rem;
+      display: block;
+      color: #eaf6ff;
+      transition: all 0.2s ease;
+    }
+    
+    .sub-menu .menu-item a:hover {
+      color: #00ffcc;
+      padding-left: 2rem;
+    }
+
+    @keyframes enter {
+      from {
+        opacity: 0;
+        transform: scaleY(0.98) translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    /* Scrollbar styling for dropdown */
+    .sub-menu::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sub-menu::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+    }
+
+    .sub-menu::-webkit-scrollbar-thumb {
+      background: rgba(0, 255, 204, 0.3);
+      border-radius: 10px;
+    }
+
+    .sub-menu::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 255, 204, 0.5);
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      color: #eaf6ff;
+      font-size: 14px;
+      transition: all 0.3s ease;
+      font-family: inherit;
+      position: relative;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: rgba(0, 220, 255, 0.5);
+      background: rgba(255, 255, 255, 0.05);
+      box-shadow: 0 0 15px rgba(0, 220, 255, 0.1);
+    }
+
+    .form-input:hover {
+      border-color: rgba(0, 220, 255, 0.3);
+    }
+
+    /* Button styles */
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+    }
+
+    .predict-btn-main {
+      flex: 1;
+      padding: 16px 24px;
+      background: linear-gradient(135deg, rgba(0, 255, 204, 0.2), rgba(0, 136, 255, 0.2));
+      border: 1px solid rgba(0, 255, 204, 0.5);
+      color: #00ffcc;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .predict-btn-main:hover {
+      background: linear-gradient(135deg, rgba(0, 255, 204, 0.3), rgba(0, 136, 255, 0.3));
+      border-color: #00ffcc;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0, 255, 204, 0.2);
+    }
+
+    .btn-clear-main {
+      flex: 1;
+      padding: 16px 24px;
+      background: rgba(255, 77, 77, 0.1);
+      border: 1px solid rgba(255, 77, 77, 0.3);
+      color: #ff4d4d;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-clear-main:hover {
+      background: rgba(255, 77, 77, 0.2);
+      border-color: #ff4d4d;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(255, 77, 77, 0.2);
+    }
+
+    /* Result area */
+    .result-area {
+      margin-top: 30px;
+      padding: 25px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 12px;
+      border: 1px solid rgba(0, 220, 255, 0.2);
+      position: relative;
+      z-index: 1;
+    }
+
+    .prediction-result {
+      text-align: center;
+      padding: 20px;
+      font-size: 14px;
+      color: #9fb9d6;
+      min-height: 50px;
+    }
+
+    .prediction-result.waiting {
+      font-style: italic;
+    }
+
+    .prediction-result.result {
+      color: #eaf6ff;
+    }
+
+    /* Notification styles */
+    #notification-container {
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .notification {
+      background: linear-gradient(135deg, rgba(10, 18, 26, 0.95), rgba(6, 10, 14, 0.95));
+      border: 1px solid rgba(69, 243, 255, 0.3);
+      border-radius: 12px;
+      padding: 16px 20px;
+      min-width: 300px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(69, 243, 255, 0.2);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      animation: slideInRight 0.4s ease-out;
+    }
+
+    @keyframes slideInRight {
+      from {
+        opacity: 0;
+        transform: translateX(100px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .notification.success {
+      border-color: rgba(69, 243, 255, 0.5);
+    }
+
+    .notification.error {
+      border-color: rgba(255, 77, 77, 0.5);
+    }
+
+    .notification-icon {
+      font-size: 24px;
+    }
+
+    .notification-content {
+      flex: 1;
+    }
+
+    .notification-title {
+      color: #eaf6ff;
+      font-weight: 600;
+      font-size: 14px;
+      margin: 0 0 4px 0;
+    }
+
+    .notification-message {
+      color: #9fb9d6;
+      font-size: 13px;
+      margin: 0;
+    }
+
+    .notification-close {
+      background: transparent;
+      border: none;
+      color: #9fb9d6;
+      cursor: pointer;
+      font-size: 18px;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .notification-close:hover {
+      color: #fff;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .predict-card {
+        padding: 30px 20px;
+      }
+
+      .predict-header h1 {
+        font-size: 24px;
+      }
+
+      .predict-nav-links {
+        gap: 15px;
+      }
+
+      .predict-nav-links a {
+        font-size: 0.85rem;
+      }
+    }
+
+    @media (max-width: 1024px) {
+      .predict-wrapper {
+        grid-template-columns: 1fr;
+        gap: 30px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .predict-page-container {
+        padding: 80px 10px 40px;
+      }
+
+      .predict-card {
+        padding: 25px 15px;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+    }
+
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="top-nav">
+    <a href="/"><i class="fas fa-brain"></i> Quantum AI</a>
+    <a href="/predict-page"><i class="fas fa-calculator"></i> Predict</a>
+    <a href="/search-page"><i class="fas fa-search"></i> Search</a>
+    <a href="/analytics-page"><i class="fas fa-chart-line"></i> Analytics</a>
+    <a href="/login-page" id="login-link"><i class="fas fa-user"></i> Login</a>
+    <a href="/app" id="dashboard-link" style="display: none;"><i class="fas fa-th-large"></i> Dashboard</a>
+  </nav>
+
+  <!-- Particle Background Canvas -->
+  <canvas id="c"></canvas>
+
+  <!-- Notification Container -->
+  <div id="notification-container"></div>
+
+  <!-- Main Content -->
+  <div class="predict-page-container">
+    <div class="predict-wrapper">
+      <div class="predict-card">
+        <header class="predict-header">
+          <h1>Car Price Predictor <span class="gear">⚙️</span></h1>
+          <p class="lead">Enter your car details to get an ML-powered resale estimate</p>
+          <div class="predict-divider"></div>
+        </header>
+
+        <form class="predict-form" action="{{ url_for('predict') }}" method="post" id="predictForm" autocomplete="off">
+          <!-- Company -->
+          <label class="form-label">Company</label>
+          <div class="form-field-container">
+            <nav class="menu menu-company">
+              <ol>
+                <li class="menu-item">
+                  <a href="#0" class="menu-trigger" data-value="">Select Company</a>
+                </li>
+                <!-- Company items will be populated by JavaScript -->
+              </ol>
+            </nav>
+            <input type="hidden" id="company" name="Company" value="" required>
+          </div>
+
+          <!-- Model -->
+          <label class="form-label">Model</label>
+          <div class="form-field-container">
+            <nav class="menu menu-model">
+              <ol>
+                <li class="menu-item">
+                  <a href="#0" class="menu-trigger" data-value="">-- Select Company First --</a>
+                </li>
+                <!-- Model items will be populated by JavaScript -->
+              </ol>
+            </nav>
+            <input type="hidden" id="model" name="Model" value="" required>
+          </div>
+
+          <!-- Year -->
+          <label class="form-label">Purchasing Year <span style="font-size: 0.85em; color: #9fb9d6; font-weight: 400;"></span></label>
+          <div class="form-field-container">
+            <nav class="menu menu-year">
+              <ol>
+                <li class="menu-item">
+                  <a href="#0" class="menu-trigger" data-value="">Select Manufacturing Year</a>
+                </li>
+                <!-- Year items will be populated by JavaScript -->
+              </ol>
+            </nav>
+            <input type="hidden" id="year" name="Year" value="" required>
+          </div>
+
+          <!-- Fuel Type -->
+          <label class="form-label">Fuel Type</label>
+          <div class="form-field-container">
+            <nav class="menu menu-fuel-type">
+              <ol>
+                <li class="menu-item">
+                  <a href="#0" class="menu-trigger" data-value="">-- Select Model First --</a>
+                </li>
+                <!-- Fuel type items will be populated by JavaScript -->
+              </ol>
+            </nav>
+            <input type="hidden" id="fuel_type" name="Fuel_Type_Petrol" value="" required>
+          </div>
+
+          <!-- Kms Driven -->
+          <label class="form-label" for="kms">Kilometers Driven</label>
+          <input id="kms" name="Kms_Driven" type="number" min="500" placeholder="e.g. 25000" class="form-input" required>
+
+          <div class="button-group">
+            <button class="predict-btn-main" type="submit">
+              <span>⚙️</span>
+              Predict Price
+            </button>
+            <button type="button" onclick="clearPredictionForm()" class="btn-clear-main">
+              <i class="fas fa-times"></i> Clear
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Result container -->
+      <div class="predict-card">
+        <header class="predict-header">
+          <h1>Prediction Result</h1>
+          <p class="lead">Your car price estimate will appear here</p>
+          <div class="predict-divider"></div>
+        </header>
+        
+        <div class="result-area">
+          <div id="prediction-result" class="prediction-result waiting">Waiting for input...</div>
+          <div id="save-button-container"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyBoW_AjIvjDhor7ZBz05521gRZ_t7NpT5M",
+      authDomain: "carpricepredictor-20447.firebaseapp.com",
+      projectId: "carpricepredictor-20447",
+      storageBucket: "carpricepredictor-20447.firebasestorage.app",
+      messagingSenderId: "428895841503",
+      appId: "1:428895841503:web:ecf3c3fa74b0f770068d6a",
+      measurementId: "G-8CJ1FTVQ0E"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Load companies, models, years, fuel types
+    // Create sub-menu for dropdown with optional search
+    function createSubMenu(includeSearch = false, searchPlaceholder = 'Search...') {
+      const subMenu = document.createElement('ul');
+      subMenu.className = 'sub-menu';
+      
+      if (includeSearch) {
+        // Add search input at the top
+        const searchContainer = document.createElement('li');
+        searchContainer.className = 'menu-item search-item';
+        searchContainer.style.padding = '8px';
+        searchContainer.style.borderBottom = '1px solid rgba(0, 220, 255, 0.2)';
+        
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'dropdown-search';
+        searchInput.placeholder = searchPlaceholder;
+        searchInput.style.width = '100%';
+        searchInput.style.padding = '8px 12px';
+        searchInput.style.background = 'rgba(10, 18, 26, 0.9)';
+        searchInput.style.border = '1px solid rgba(0, 220, 255, 0.3)';
+        searchInput.style.borderRadius = '4px';
+        searchInput.style.color = '#eaf6ff';
+        searchInput.style.fontSize = '14px';
+        searchInput.style.outline = 'none';
+        searchInput.style.boxSizing = 'border-box';
+        
+        // Add search icon
+        searchInput.style.backgroundImage = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%2300dcff\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.35-4.35\"/></svg>')";
+        searchInput.style.backgroundRepeat = 'no-repeat';
+        searchInput.style.backgroundPosition = 'right 8px center';
+        searchInput.style.paddingRight = '32px';
+        
+        searchInput.addEventListener('input', function(e) {
+          const searchTerm = e.target.value.toLowerCase();
+          const items = subMenu.querySelectorAll('.menu-item:not(.search-item)');
+          items.forEach(item => {
+            const text = item.textContent.toLowerCase();
+            if (text.includes(searchTerm)) {
+              item.style.display = '';
+            } else {
+              item.style.display = 'none';
+            }
+          });
+        });
+        
+        // Prevent dropdown from closing when clicking on search input
+        searchInput.addEventListener('click', function(e) {
+          e.stopPropagation(); // Prevent click from bubbling up
+        });
+        
+        searchInput.addEventListener('keydown', function(e) {
+          e.stopPropagation(); // Prevent dropdown from closing
+        });
+        
+        // Prevent dropdown from closing when clicking on search container
+        searchContainer.addEventListener('click', function(e) {
+          e.stopPropagation(); // Prevent click from bubbling up
+        });
+        
+        searchContainer.appendChild(searchInput);
+        subMenu.appendChild(searchContainer);
+      }
+      
+      return subMenu;
+    }
+
+    async function loadCompanies() {
+      try {
+        const response = await fetch('/get_companies');
+        const companies = await response.json();
+        const menuCompany = document.querySelector('.menu-company > ol');
+        const menuItem = menuCompany.querySelector('.menu-item');
+        
+        // Create sub-menu if it doesn't exist (with search)
+        let subMenu = menuItem.querySelector('.sub-menu');
+        if (!subMenu) {
+          subMenu = createSubMenu(true, 'Search companies...');
+          menuItem.appendChild(subMenu);
+        } else {
+          // Preserve search input if it exists
+          const searchItem = subMenu.querySelector('.search-item');
+          subMenu.innerHTML = '';
+          if (searchItem) {
+            subMenu.appendChild(searchItem);
+          } else {
+            // Add search if it was missing
+            const searchContainer = document.createElement('li');
+            searchContainer.className = 'menu-item search-item';
+            searchContainer.style.padding = '8px';
+            searchContainer.style.borderBottom = '1px solid rgba(0, 220, 255, 0.2)';
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.className = 'dropdown-search';
+            searchInput.placeholder = 'Search companies...';
+            searchInput.style.width = '100%';
+            searchInput.style.padding = '8px 12px';
+            searchInput.style.background = 'rgba(10, 18, 26, 0.9)';
+            searchInput.style.border = '1px solid rgba(0, 220, 255, 0.3)';
+            searchInput.style.borderRadius = '4px';
+            searchInput.style.color = '#eaf6ff';
+            searchInput.style.fontSize = '14px';
+            searchInput.style.outline = 'none';
+            searchInput.style.boxSizing = 'border-box';
+            searchInput.style.backgroundImage = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%2300dcff\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.35-4.35\"/></svg>')";
+            searchInput.style.backgroundRepeat = 'no-repeat';
+            searchInput.style.backgroundPosition = 'right 8px center';
+            searchInput.style.paddingRight = '32px';
+            searchInput.addEventListener('input', function(e) {
+              const searchTerm = e.target.value.toLowerCase();
+              const items = subMenu.querySelectorAll('.menu-item:not(.search-item)');
+              items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(searchTerm) ? '' : 'none';
+              });
+            });
+            // Prevent dropdown from closing when clicking on search input
+            searchInput.addEventListener('click', function(e) {
+              e.stopPropagation();
+            });
+            searchInput.addEventListener('keydown', function(e) {
+              e.stopPropagation();
+            });
+            // Prevent dropdown from closing when clicking on search container
+            searchContainer.addEventListener('click', function(e) {
+              e.stopPropagation();
+            });
+            searchContainer.appendChild(searchInput);
+            subMenu.appendChild(searchContainer);
+          }
+        }
+        
+        companies.forEach(company => {
+          const item = document.createElement('li');
+          item.className = 'menu-item';
+          const link = document.createElement('a');
+          link.href = '#0';
+          link.textContent = company;
+          link.setAttribute('data-value', company);
+          link.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            selectCompany(company);
+          });
+          item.appendChild(link);
+          subMenu.appendChild(item);
+        });
+        console.log('Companies loaded:', companies.length);
+      } catch (error) {
+        console.error('Error loading companies:', error);
+      }
+    }
+
+    async function loadModels() {
+      const company = document.getElementById('company').value;
+      if (!company) {
+        const trigger = document.querySelector('.menu-model .menu-trigger');
+        if (trigger) {
+          trigger.textContent = '-- Select Company First --';
+          trigger.setAttribute('data-value', '');
+        }
+        const subMenu = document.querySelector('.menu-model .sub-menu');
+        if (subMenu) subMenu.innerHTML = '';
+        document.getElementById('model').value = '';
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/get_models_by_company?company=${encodeURIComponent(company)}`);
+        const models = await response.json();
+        const menuModel = document.querySelector('.menu-model > ol');
+        const menuItem = menuModel.querySelector('.menu-item');
+        
+        // Create sub-menu if it doesn't exist (with search)
+        let subMenu = menuItem.querySelector('.sub-menu');
+        if (!subMenu) {
+          subMenu = createSubMenu(true, 'Search models...');
+          menuItem.appendChild(subMenu);
+        } else {
+          // Preserve search input if it exists
+          const searchItem = subMenu.querySelector('.search-item');
+          subMenu.innerHTML = '';
+          if (searchItem) {
+            subMenu.appendChild(searchItem);
+          } else {
+            // Add search if it was missing
+            const searchContainer = document.createElement('li');
+            searchContainer.className = 'menu-item search-item';
+            searchContainer.style.padding = '8px';
+            searchContainer.style.borderBottom = '1px solid rgba(0, 220, 255, 0.2)';
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.className = 'dropdown-search';
+            searchInput.placeholder = 'Search models...';
+            searchInput.style.width = '100%';
+            searchInput.style.padding = '8px 12px';
+            searchInput.style.background = 'rgba(10, 18, 26, 0.9)';
+            searchInput.style.border = '1px solid rgba(0, 220, 255, 0.3)';
+            searchInput.style.borderRadius = '4px';
+            searchInput.style.color = '#eaf6ff';
+            searchInput.style.fontSize = '14px';
+            searchInput.style.outline = 'none';
+            searchInput.style.boxSizing = 'border-box';
+            searchInput.style.backgroundImage = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%2300dcff\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.35-4.35\"/></svg>')";
+            searchInput.style.backgroundRepeat = 'no-repeat';
+            searchInput.style.backgroundPosition = 'right 8px center';
+            searchInput.style.paddingRight = '32px';
+            searchInput.addEventListener('input', function(e) {
+              const searchTerm = e.target.value.toLowerCase();
+              const items = subMenu.querySelectorAll('.menu-item:not(.search-item)');
+              items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(searchTerm) ? '' : 'none';
+              });
+            });
+            // Prevent dropdown from closing when clicking on search input
+            searchInput.addEventListener('click', function(e) {
+              e.stopPropagation();
+            });
+            searchInput.addEventListener('keydown', function(e) {
+              e.stopPropagation();
+            });
+            // Prevent dropdown from closing when clicking on search container
+            searchContainer.addEventListener('click', function(e) {
+              e.stopPropagation();
+            });
+            searchContainer.appendChild(searchInput);
+            subMenu.appendChild(searchContainer);
+          }
+        }
+        
+        models.forEach(model => {
+          const item = document.createElement('li');
+          item.className = 'menu-item';
+          const link = document.createElement('a');
+          link.href = '#0';
+          link.textContent = model;
+          link.setAttribute('data-value', model);
+          link.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            selectModel(model);
+          });
+          item.appendChild(link);
+          subMenu.appendChild(item);
+        });
+        
+        const trigger = document.querySelector('.menu-model .menu-trigger');
+        if (trigger && models.length > 0) {
+          trigger.textContent = 'Select Model';
+        }
+        console.log('Models loaded:', models.length);
+      } catch (error) {
+        console.error('Error loading models:', error);
+      }
+    }
+
+    async function loadFuelTypes() {
+      const company = document.getElementById('company').value;
+      const model = document.getElementById('model').value;
+      if (!model) {
+        const trigger = document.querySelector('.menu-fuel-type .menu-trigger');
+        if (trigger) {
+          trigger.textContent = '-- Select Model First --';
+          trigger.setAttribute('data-value', '');
+        }
+        const subMenu = document.querySelector('.menu-fuel-type .sub-menu');
+        if (subMenu) subMenu.innerHTML = '';
+        document.getElementById('fuel_type').value = '';
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/get_fuel_by_model?company=${encodeURIComponent(company)}&model=${encodeURIComponent(model)}`);
+        const fuelTypes = await response.json();
+        const menuFuelType = document.querySelector('.menu-fuel-type > ol');
+        const menuItem = menuFuelType.querySelector('.menu-item');
+        
+        // Create sub-menu if it doesn't exist
+        let subMenu = menuItem.querySelector('.sub-menu');
+        if (!subMenu) {
+          subMenu = createSubMenu();
+          menuItem.appendChild(subMenu);
+        } else {
+          subMenu.innerHTML = '';
+        }
+        
+        fuelTypes.forEach(fuel => {
+          const item = document.createElement('li');
+          item.className = 'menu-item';
+          const link = document.createElement('a');
+          link.href = '#0';
+          link.textContent = fuel;
+          link.setAttribute('data-value', fuel);
+          link.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            selectFuelType(fuel);
+          });
+          item.appendChild(link);
+          subMenu.appendChild(item);
+        });
+        
+        const trigger = document.querySelector('.menu-fuel-type .menu-trigger');
+        if (trigger && fuelTypes.length > 0) {
+          trigger.textContent = 'Select Fuel Type';
+        }
+        console.log('Fuel types loaded:', fuelTypes.length);
+      } catch (error) {
+        console.error('Error loading fuel types:', error);
+      }
+    }
+
+    async function loadYears() {
+      try {
+        const response = await fetch('/api/years');
+        const years = await response.json();
+        const menuYear = document.querySelector('.menu-year > ol');
+        const menuItem = menuYear.querySelector('.menu-item');
+        
+        // Create sub-menu if it doesn't exist (with search)
+        let subMenu = menuItem.querySelector('.sub-menu');
+        if (!subMenu) {
+          subMenu = createSubMenu(true, 'Search year...');
+          menuItem.appendChild(subMenu);
+        } else {
+          // Preserve search input if it exists
+          const searchItem = subMenu.querySelector('.search-item');
+          subMenu.innerHTML = '';
+          if (searchItem) {
+            subMenu.appendChild(searchItem);
+          } else {
+            // Add search if it was missing
+            const searchContainer = document.createElement('li');
+            searchContainer.className = 'menu-item search-item';
+            searchContainer.style.padding = '8px';
+            searchContainer.style.borderBottom = '1px solid rgba(0, 220, 255, 0.2)';
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.className = 'dropdown-search';
+            searchInput.placeholder = 'Search year...';
+            searchInput.style.width = '100%';
+            searchInput.style.padding = '8px 12px';
+            searchInput.style.background = 'rgba(10, 18, 26, 0.9)';
+            searchInput.style.border = '1px solid rgba(0, 220, 255, 0.3)';
+            searchInput.style.borderRadius = '4px';
+            searchInput.style.color = '#eaf6ff';
+            searchInput.style.fontSize = '14px';
+            searchInput.style.outline = 'none';
+            searchInput.style.boxSizing = 'border-box';
+            searchInput.style.backgroundImage = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"%2300dcff\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.35-4.35\"/></svg>')";
+            searchInput.style.backgroundRepeat = 'no-repeat';
+            searchInput.style.backgroundPosition = 'right 8px center';
+            searchInput.style.paddingRight = '32px';
+            searchInput.addEventListener('input', function(e) {
+              const searchTerm = e.target.value.toLowerCase();
+              const items = subMenu.querySelectorAll('.menu-item:not(.search-item)');
+              items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(searchTerm) ? '' : 'none';
+              });
+            });
+            // Prevent dropdown from closing when clicking on search input
+            searchInput.addEventListener('click', function(e) {
+              e.stopPropagation();
+            });
+            searchInput.addEventListener('keydown', function(e) {
+              e.stopPropagation();
+            });
+            // Prevent dropdown from closing when clicking on search container
+            searchContainer.addEventListener('click', function(e) {
+              e.stopPropagation();
+            });
+            searchContainer.appendChild(searchInput);
+            subMenu.appendChild(searchContainer);
+          }
+        }
+        
+        // Sort years numerically
+        const sortedYears = [...new Set(years)].sort((a, b) => parseInt(a) - parseInt(b));
+        sortedYears.forEach(year => {
+          const item = document.createElement('li');
+          item.className = 'menu-item';
+          const link = document.createElement('a');
+          link.href = '#0';
+          link.textContent = year;
+          link.setAttribute('data-value', year);
+          link.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            selectYear(year);
+          });
+          item.appendChild(link);
+          subMenu.appendChild(item);
+        });
+        console.log('Years loaded:', sortedYears.length, 'from', sortedYears[0], 'to', sortedYears[sortedYears.length - 1]);
+      } catch (error) {
+        console.error('Error loading years:', error);
+      }
+    }
+
+    // Helper function to close dropdown immediately
+    function closeDropdown(menuClass) {
+      const subMenu = document.querySelector(`.${menuClass} .sub-menu`);
+      const container = document.querySelector(`.${menuClass}`).closest('.form-field-container');
+      
+      if (subMenu) {
+        subMenu.style.display = 'none';
+        subMenu.style.visibility = 'hidden';
+        subMenu.classList.remove('show');
+      }
+      if (container) {
+        container.classList.remove('dropdown-active');
+      }
+    }
+
+    // Selection handlers
+    function selectCompany(company) {
+      document.getElementById('company').value = company;
+      const trigger = document.querySelector('.menu-company .menu-trigger');
+      if (trigger) {
+        trigger.textContent = company;
+        trigger.setAttribute('data-value', company);
+      }
+      // Close dropdown immediately
+      closeDropdown('menu-company');
+      loadModels();
+    }
+
+    function selectModel(model) {
+      document.getElementById('model').value = model;
+      const trigger = document.querySelector('.menu-model .menu-trigger');
+      if (trigger) {
+        trigger.textContent = model;
+        trigger.setAttribute('data-value', model);
+      }
+      // Close dropdown immediately
+      closeDropdown('menu-model');
+      loadFuelTypes();
+    }
+
+    function selectYear(year) {
+      document.getElementById('year').value = year;
+      const trigger = document.querySelector('.menu-year .menu-trigger');
+      if (trigger) {
+        trigger.textContent = year;
+        trigger.setAttribute('data-value', year);
+      }
+      // Close dropdown immediately
+      closeDropdown('menu-year');
+    }
+
+    function selectFuelType(fuelType) {
+      document.getElementById('fuel_type').value = fuelType;
+      const trigger = document.querySelector('.menu-fuel-type .menu-trigger');
+      if (trigger) {
+        trigger.textContent = fuelType;
+        trigger.setAttribute('data-value', fuelType);
+      }
+      // Close dropdown immediately
+      closeDropdown('menu-fuel-type');
+    }
+
+    // Toggle dropdown on click
+    function toggleDropdown(menuElement) {
+      const subMenu = menuElement.querySelector('.sub-menu');
+      const allSubMenus = document.querySelectorAll('.sub-menu');
+      const formFieldContainer = menuElement.closest('.form-field-container');
+      
+      // Close all other dropdowns
+      allSubMenus.forEach(menu => {
+        if (menu !== subMenu) {
+          menu.style.display = 'none';
+          menu.classList.remove('show');
+          const otherContainer = menu.closest('.form-field-container');
+          if (otherContainer) {
+            otherContainer.classList.remove('dropdown-active');
+          }
+        }
+      });
+      
+      // Toggle current dropdown
+      if (subMenu) {
+        if (subMenu.style.display === 'none' || !subMenu.style.display) {
+          subMenu.style.display = 'block';
+          subMenu.style.visibility = 'visible';
+          subMenu.classList.add('show');
+          if (formFieldContainer) {
+            formFieldContainer.classList.add('dropdown-active');
+          }
+        } else {
+          subMenu.style.display = 'none';
+          subMenu.style.visibility = 'hidden';
+          subMenu.classList.remove('show');
+          if (formFieldContainer) {
+            formFieldContainer.classList.remove('dropdown-active');
+          }
+        }
+      }
+    }
+
+    // Setup click handlers for dropdowns
+    function setupDropdownHandlers() {
+      const companyMenu = document.querySelector('.menu-company');
+      const modelMenu = document.querySelector('.menu-model');
+      const yearMenu = document.querySelector('.menu-year');
+      const fuelTypeMenu = document.querySelector('.menu-fuel-type');
+      
+      const companyMenuItem = companyMenu ? companyMenu.querySelector('.menu-item') : null;
+      const modelMenuItem = modelMenu ? modelMenu.querySelector('.menu-item') : null;
+      const yearMenuItem = yearMenu ? yearMenu.querySelector('.menu-item') : null;
+      const fuelTypeMenuItem = fuelTypeMenu ? fuelTypeMenu.querySelector('.menu-item') : null;
+      
+      if (companyMenuItem && companyMenu) {
+        companyMenuItem.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleDropdown(companyMenu);
+        });
+      }
+      
+      if (modelMenuItem && modelMenu) {
+        modelMenuItem.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleDropdown(modelMenu);
+        });
+      }
+      
+      if (yearMenuItem && yearMenu) {
+        yearMenuItem.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleDropdown(yearMenu);
+        });
+      }
+      
+      if (fuelTypeMenuItem && fuelTypeMenu) {
+        fuelTypeMenuItem.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleDropdown(fuelTypeMenu);
+        });
+      }
+    }
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.menu')) {
+        const subMenus = document.querySelectorAll('.sub-menu');
+        subMenus.forEach(subMenu => {
+          subMenu.style.display = 'none';
+          subMenu.classList.remove('show');
+          const container = subMenu.closest('.form-field-container');
+          if (container) {
+            container.classList.remove('dropdown-active');
+          }
+        });
+      }
+    }, true);
+
+    // Clear form
+    function clearPredictionForm() {
+      document.getElementById('predictForm').reset();
+      
+      // Reset hidden inputs
+      document.getElementById('company').value = '';
+      document.getElementById('model').value = '';
+      document.getElementById('year').value = '';
+      document.getElementById('fuel_type').value = '';
+      
+      // Reset menu triggers
+      const companyTrigger = document.querySelector('.menu-company .menu-trigger');
+      if (companyTrigger) {
+        companyTrigger.textContent = 'Select Company';
+        companyTrigger.setAttribute('data-value', '');
+      }
+      
+      const modelTrigger = document.querySelector('.menu-model .menu-trigger');
+      if (modelTrigger) {
+        modelTrigger.textContent = '-- Select Company First --';
+        modelTrigger.setAttribute('data-value', '');
+      }
+      
+      const yearTrigger = document.querySelector('.menu-year .menu-trigger');
+      if (yearTrigger) {
+        yearTrigger.textContent = 'Select Year';
+        yearTrigger.setAttribute('data-value', '');
+      }
+      
+      const fuelTrigger = document.querySelector('.menu-fuel-type .menu-trigger');
+      if (fuelTrigger) {
+        fuelTrigger.textContent = '-- Select Model First --';
+        fuelTrigger.setAttribute('data-value', '');
+      }
+      
+      // Clear submenus
+      const subMenus = document.querySelectorAll('.sub-menu');
+      subMenus.forEach(subMenu => {
+        subMenu.style.display = 'none';
+        subMenu.classList.remove('show');
+      });
+      
+      // Reset model and fuel type dropdowns
+      const modelSubMenu = document.querySelector('.menu-model .sub-menu');
+      if (modelSubMenu) modelSubMenu.innerHTML = '';
+      
+      const fuelSubMenu = document.querySelector('.menu-fuel-type .sub-menu');
+      if (fuelSubMenu) fuelSubMenu.innerHTML = '';
+      
+      // Clear prediction result and features section
+      const resultDiv = document.getElementById('prediction-result');
+      if (resultDiv) {
+        resultDiv.className = 'prediction-result waiting';
+        resultDiv.textContent = 'Waiting for input...';
+      }
+      
+      // Clear car features section if it exists
+      const featuresSection = document.getElementById('car-features-section');
+      if (featuresSection) {
+        featuresSection.remove();
+      }
+      
+      // Clear save button container
+      const saveContainer = document.getElementById('save-button-container');
+      if (saveContainer) saveContainer.innerHTML = '';
+      
+      // Remove saved prediction from localStorage
+      localStorage.removeItem('lastPrediction');
+    }
+
+    // Function to restore saved prediction from localStorage
+    function restoreSavedPrediction() {
+      const savedPrediction = localStorage.getItem('lastPrediction');
+      if (!savedPrediction) return;
+      
+      try {
+        const predictionData = JSON.parse(savedPrediction);
+        const data = predictionData.data;
+        const formData = predictionData.formData;
+        const resultDiv = document.getElementById('prediction-result');
+        
+        if (!data || !resultDiv) return;
+        
+        // Restore form values
+        if (formData.company) {
+          document.getElementById('company').value = formData.company;
+          const companyTrigger = document.querySelector('.menu-company .menu-trigger');
+          if (companyTrigger) {
+            companyTrigger.textContent = formData.company;
+            companyTrigger.setAttribute('data-value', formData.company);
+          }
+        }
+        
+        if (formData.model) {
+          document.getElementById('model').value = formData.model;
+          const modelTrigger = document.querySelector('.menu-model .menu-trigger');
+          if (modelTrigger) {
+            modelTrigger.textContent = formData.model;
+            modelTrigger.setAttribute('data-value', formData.model);
+          }
+        }
+        
+        if (formData.year) {
+          document.getElementById('year').value = formData.year;
+          const yearTrigger = document.querySelector('.menu-year .menu-trigger');
+          if (yearTrigger) {
+            yearTrigger.textContent = formData.year;
+            yearTrigger.setAttribute('data-value', formData.year);
+          }
+        }
+        
+        if (formData.fuelType) {
+          document.getElementById('fuel_type').value = formData.fuelType;
+          const fuelTrigger = document.querySelector('.menu-fuel-type .menu-trigger');
+          if (fuelTrigger) {
+            fuelTrigger.textContent = formData.fuelType;
+            fuelTrigger.setAttribute('data-value', formData.fuelType);
+          }
+        }
+        
+        if (formData.kmsDriven) {
+          document.getElementById('kms').value = formData.kmsDriven;
+        }
+        
+        // Restore prediction display
+        resultDiv.className = 'prediction-result result';
+        
+        let resultHTML = '<div class="prediction-main">';
+        resultHTML += `<div style="font-size: 2rem; font-weight: 900; color: #00ffcc; margin-bottom: 15px;">${data.formatted_price}</div>`;
+        
+        if (data.confidence === 'high') {
+          resultHTML += '<div style="display: inline-block; padding: 8px 16px; background: rgba(0, 255, 204, 0.2); border: 1px solid #00ffcc; border-radius: 20px; color: #00ffcc; font-size: 14px; font-weight: 600; margin-bottom: 15px;">🎯 High Confidence</div>';
+        } else if (data.confidence === 'low') {
+          resultHTML += '<div style="display: inline-block; padding: 8px 16px; background: rgba(255, 77, 77, 0.2); border: 1px solid #ff4d4d; border-radius: 20px; color: #ff4d4d; font-size: 14px; font-weight: 600; margin-bottom: 15px;">⚠️ Low Confidence</div>';
+        }
+        
+        resultHTML += `<div style="color: #9fb9d6; font-size: 14px; margin-bottom: 20px;">Price Range: <span style="color: #eaf6ff; font-weight: 700;">₹${data.low_range.toLocaleString()} - ₹${data.high_range.toLocaleString()}</span></div>`;
+        
+        // Display ex-showroom price and price decrease if available
+        if (data.exshowroom_price && data.formatted_exshowroom) {
+          const priceDecrease = data.price_decrease || 0;
+          const priceDecreasePercent = data.price_decrease_percent || 0;
+          const formattedDecrease = priceDecrease.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+          const purchaseYear = formData.year || 'purchase';
+          
+          resultHTML += '<div style="margin-top: 20px; padding: 15px; background: rgba(0, 220, 255, 0.1); border: 1px solid rgba(0, 220, 255, 0.3); border-radius: 8px; margin-bottom: 20px;">';
+          resultHTML += '<div style="color: #00ffcc; font-weight: 700; margin-bottom: 10px; font-size: 14px;">💰 Price Comparison:</div>';
+          resultHTML += `<div style="color: #9fb9d6; font-size: 13px; margin-bottom: 6px;">Ex-Showroom Price (${purchaseYear}): <span style="color: #eaf6ff; font-weight: 600;">${data.formatted_exshowroom}</span></div>`;
+          resultHTML += `<div style="color: #9fb9d6; font-size: 13px; margin-bottom: 6px;">Current Market Price (${new Date().getFullYear()}): <span style="color: #eaf6ff; font-weight: 600;">${data.formatted_price}</span></div>`;
+          if (priceDecrease > 0) {
+            resultHTML += `<div style="color: #ff6b6b; font-size: 13px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 107, 107, 0.2);">`;
+            resultHTML += `<span style="font-weight: 700;">Price Decreased: ₹${formattedDecrease} (${priceDecreasePercent.toFixed(1)}%)</span>`;
+            resultHTML += `</div>`;
+          }
+          resultHTML += '</div>';
+          
+          // Add external price verification links
+          const company = formData.company || '';
+          const model = formData.model || '';
+          const searchQuery = encodeURIComponent(`${company} ${model}`.trim());
+          
+          if (company && model) {
+            resultHTML += '<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0, 220, 255, 0.2);">';
+            resultHTML += '<div style="color: #00ffcc; font-weight: 700; margin-bottom: 10px; font-size: 13px;">🔗 Verify Price on:</div>';
+            resultHTML += '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">';
+            
+            // CarDekho
+            const cardekhoUrl = `https://www.cardekho.com/cars/${searchQuery}`;
+            resultHTML += `<a href="${cardekhoUrl}" target="_blank" rel="noopener noreferrer" class="price-link" style="display: inline-flex; align-items: center; padding: 8px 14px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 6px; color: #00ffcc; text-decoration: none; font-size: 12px; font-weight: 600; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0, 255, 204, 0.25)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(0, 255, 204, 0.15)'; this.style.transform='translateY(0)';" title="Check price on CarDekho">`;
+            resultHTML += `<i class="fas fa-external-link-alt" style="margin-right: 6px; font-size: 10px;"></i> CarDekho`;
+            resultHTML += `</a>`;
+            
+            // CarWale
+            const carwaleUrl = `https://www.carwale.com/search/${searchQuery}`;
+            resultHTML += `<a href="${carwaleUrl}" target="_blank" rel="noopener noreferrer" class="price-link" style="display: inline-flex; align-items: center; padding: 8px 14px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 6px; color: #00ffcc; text-decoration: none; font-size: 12px; font-weight: 600; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0, 255, 204, 0.25)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(0, 255, 204, 0.15)'; this.style.transform='translateY(0)';" title="Check price on CarWale">`;
+            resultHTML += `<i class="fas fa-external-link-alt" style="margin-right: 6px; font-size: 10px;"></i> CarWale`;
+            resultHTML += `</a>`;
+            
+            // ZigWheels
+            const zigwheelsUrl = `https://www.zigwheels.com/newcars/${searchQuery}`;
+            resultHTML += `<a href="${zigwheelsUrl}" target="_blank" rel="noopener noreferrer" class="price-link" style="display: inline-flex; align-items: center; padding: 8px 14px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 6px; color: #00ffcc; text-decoration: none; font-size: 12px; font-weight: 600; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0, 255, 204, 0.25)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(0, 255, 204, 0.15)'; this.style.transform='translateY(0)';" title="Check price on ZigWheels">`;
+            resultHTML += `<i class="fas fa-external-link-alt" style="margin-right: 6px; font-size: 10px;"></i> ZigWheels`;
+            resultHTML += `</a>`;
+            
+            // AutoCar India
+            const autocarUrl = `https://www.autocarindia.com/search?q=${searchQuery}`;
+            resultHTML += `<a href="${autocarUrl}" target="_blank" rel="noopener noreferrer" class="price-link" style="display: inline-flex; align-items: center; padding: 8px 14px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 6px; color: #00ffcc; text-decoration: none; font-size: 12px; font-weight: 600; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0, 255, 204, 0.25)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(0, 255, 204, 0.15)'; this.style.transform='translateY(0)';" title="Check price on AutoCar India">`;
+            resultHTML += `<i class="fas fa-external-link-alt" style="margin-right: 6px; font-size: 10px;"></i> AutoCar`;
+            resultHTML += `</a>`;
+            
+            // 91Wheels
+            const wheels91Url = `https://www.91wheels.com/cars/${searchQuery}`;
+            resultHTML += `<a href="${wheels91Url}" target="_blank" rel="noopener noreferrer" class="price-link" style="display: inline-flex; align-items: center; padding: 8px 14px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 6px; color: #00ffcc; text-decoration: none; font-size: 12px; font-weight: 600; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0, 255, 204, 0.25)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(0, 255, 204, 0.15)'; this.style.transform='translateY(0)';" title="Check price on 91Wheels">`;
+            resultHTML += `<i class="fas fa-external-link-alt" style="margin-right: 6px; font-size: 10px;"></i> 91Wheels`;
+            resultHTML += `</a>`;
+            
+            resultHTML += '</div>';
+            resultHTML += '<div style="color: #9fb9d6; font-size: 11px; margin-top: 8px; font-style: italic;">Compare our prediction with market prices on these trusted platforms</div>';
+            resultHTML += '</div>';
+          }
+        }
+        
+        if (data.tips && data.tips.length > 0) {
+          resultHTML += '<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(0, 220, 255, 0.2);">';
+          resultHTML += '<div style="color: #00ffcc; font-weight: 700; margin-bottom: 12px;">💡 Insights:</div>';
+          data.tips.forEach(tip => {
+            resultHTML += `<div style="color: #9fb9d6; font-size: 13px; margin-bottom: 8px; line-height: 1.6;">${tip}</div>`;
+          });
+          resultHTML += '</div>';
+        }
+        
+        // Display car features if available
+        if (data.car_features && Object.keys(data.car_features).length > 0) {
+          const features = data.car_features;
+          const featureIcons = {
+            'displacement': '⚙️', 'power': '⚡', 'torque': '🔧', 'body_type': '🚙', 'seating_capacity': '👥',
+            'fuel_tank_capacity': '⛽', 'arai_certified_mileage': '📊', 'gears': '⚙️', 'type': '🔀', 'boot_space': '🧳',
+            'ground_clearance': '⬆️', 'wheelbase': '📏', 'height': '📐', 'length': '📏', 'width': '📐', 'cylinders': '🔩',
+            'abs': '🛡️', 'airbags': '💺', 'power_steering': '🎯', 'power_windows': '🪟', 'central_locking': '🔒',
+            'bluetooth': '📱', 'usb_compatibility': '🔌', 'android_auto': '🤖', 'apple_carplay': '🍎',
+            'cruise_control': '🛣️', 'parking_assistance': '🅿️', 'navigation_system': '🗺️'
+          };
+          const featureLabels = {
+            'displacement': 'Engine Displacement', 'power': 'Power', 'torque': 'Torque', 'body_type': 'Body Type',
+            'seating_capacity': 'Seating Capacity', 'fuel_tank_capacity': 'Fuel Tank', 'arai_certified_mileage': 'Mileage (ARAI)',
+            'gears': 'Gears', 'type': 'Transmission', 'boot_space': 'Boot Space', 'ground_clearance': 'Ground Clearance',
+            'wheelbase': 'Wheelbase', 'height': 'Height', 'length': 'Length', 'width': 'Width', 'cylinders': 'Cylinders'
+          };
+          
+          resultHTML += '<div id="car-features-section" style="margin-top: 25px; padding-top: 25px; border-top: 1px solid rgba(0, 220, 255, 0.2); text-align: left;">';
+          resultHTML += '<div style="color: #00ffcc; font-weight: 700; margin-bottom: 15px; font-size: 15px; text-align: left;">🚗 Car Features & Specifications:</div>';
+          
+          const engineFeatures = ['displacement', 'cylinders', 'power', 'torque'];
+          const dimensionFeatures = ['height', 'length', 'width', 'wheelbase', 'ground_clearance'];
+          const comfortFeatures = ['seating_capacity', 'boot_space', 'body_type', 'type', 'gears', 'fuel_tank_capacity', 'arai_certified_mileage'];
+          const safetyFeatures = ['abs', 'airbags'];
+          const techFeatures = ['power_steering', 'power_windows', 'central_locking', 'bluetooth', 'usb_compatibility', 'android_auto', 'apple_carplay', 'cruise_control', 'parking_assistance', 'navigation_system'];
+          
+          const engineF = engineFeatures.filter(f => features[f]);
+          if (engineF.length > 0) {
+            resultHTML += '<div style="margin-bottom: 15px; text-align: left;"><div style="color: #45f3ff; font-weight: 600; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">⚙️ Engine & Performance</div>';
+            resultHTML += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; justify-items: start;">';
+            engineF.forEach(feature => {
+              const icon = featureIcons[feature] || '📋';
+              const label = featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              resultHTML += `<div style="padding: 10px; background: rgba(69, 243, 255, 0.1); border: 1px solid rgba(69, 243, 255, 0.2); border-radius: 6px;"><div style="color: #9fb9d6; font-size: 11px; margin-bottom: 4px;">${icon} ${label}</div><div style="color: #eaf6ff; font-weight: 600; font-size: 12px;">${features[feature]}</div></div>`;
+            });
+            resultHTML += '</div></div>';
+          }
+          
+          const dimF = dimensionFeatures.filter(f => features[f]);
+          if (dimF.length > 0) {
+            resultHTML += '<div style="margin-bottom: 15px; text-align: left;"><div style="color: #45f3ff; font-weight: 600; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">📐 Dimensions</div>';
+            resultHTML += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; justify-items: start;">';
+            dimF.forEach(feature => {
+              const icon = featureIcons[feature] || '📋';
+              const label = featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              resultHTML += `<div style="padding: 10px; background: rgba(69, 243, 255, 0.1); border: 1px solid rgba(69, 243, 255, 0.2); border-radius: 6px;"><div style="color: #9fb9d6; font-size: 11px; margin-bottom: 4px;">${icon} ${label}</div><div style="color: #eaf6ff; font-weight: 600; font-size: 12px;">${features[feature]}</div></div>`;
+            });
+            resultHTML += '</div></div>';
+          }
+          
+          const comfortF = comfortFeatures.filter(f => features[f]);
+          if (comfortF.length > 0) {
+            resultHTML += '<div style="margin-bottom: 15px; text-align: left;"><div style="color: #45f3ff; font-weight: 600; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">🛋️ Comfort & Convenience</div>';
+            resultHTML += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; justify-items: start;">';
+            comfortF.forEach(feature => {
+              const icon = featureIcons[feature] || '📋';
+              const label = featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              resultHTML += `<div style="padding: 10px; background: rgba(69, 243, 255, 0.1); border: 1px solid rgba(69, 243, 255, 0.2); border-radius: 6px;"><div style="color: #9fb9d6; font-size: 11px; margin-bottom: 4px;">${icon} ${label}</div><div style="color: #eaf6ff; font-weight: 600; font-size: 12px;">${features[feature]}</div></div>`;
+            });
+            resultHTML += '</div></div>';
+          }
+          
+          const safetyF = safetyFeatures.filter(f => features[f]);
+          if (safetyF.length > 0) {
+            resultHTML += '<div style="margin-bottom: 15px; text-align: left;"><div style="color: #45f3ff; font-weight: 600; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">🛡️ Safety Features</div>';
+            resultHTML += '<div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start;">';
+            safetyF.forEach(feature => {
+              const icon = featureIcons[feature] || '✅';
+              const label = featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              resultHTML += `<div style="padding: 8px 12px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 20px; font-size: 12px; color: #00ffcc;">${icon} ${label}</div>`;
+            });
+            resultHTML += '</div></div>';
+          }
+          
+          const techF = techFeatures.filter(f => features[f]);
+          if (techF.length > 0) {
+            resultHTML += '<div style="margin-bottom: 15px; text-align: left;"><div style="color: #45f3ff; font-weight: 600; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">📱 Technology & Connectivity</div>';
+            resultHTML += '<div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start;">';
+            techF.forEach(feature => {
+              const icon = featureIcons[feature] || '✅';
+              const label = featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              resultHTML += `<div style="padding: 8px 12px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 20px; font-size: 12px; color: #00ffcc;">${icon} ${label}</div>`;
+            });
+            resultHTML += '</div></div>';
+          }
+          
+          resultHTML += '</div>';
+        }
+        
+        resultHTML += '</div>';
+        resultDiv.innerHTML = resultHTML;
+        
+        // Restore save button if user is logged in
+        const saveContainer = document.getElementById('save-button-container');
+        const userId = localStorage.getItem('currentUserId');
+        if (userId && saveContainer) {
+          saveContainer.innerHTML = `
+            <button onclick="saveCar(new FormData(document.getElementById('predictForm')), '${data.formatted_price}')" 
+                    style="margin-top: 20px; padding: 12px 24px; background: rgba(69, 243, 255, 0.2); border: 1px solid rgba(69, 243, 255, 0.5); color: #45f3ff; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; width: 100%;">
+              <i class="fas fa-bookmark"></i> Save to Dashboard
+            </button>
+          `;
+        }
+      } catch (error) {
+        console.error('Error restoring saved prediction:', error);
+        // Clear corrupted data
+        localStorage.removeItem('lastPrediction');
+      }
+    }
+
+    // Show notification
+    function showNotification(title, message, type = 'success') {
+      const container = document.getElementById('notification-container');
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      
+      const icons = {
+        success: '🚗',
+        error: '❌',
+        info: 'ℹ️'
+      };
+      
+      notification.innerHTML = `
+        <div class="notification-icon">${icons[type] || icons.success}</div>
+        <div class="notification-content">
+          <div class="notification-title">${title}</div>
+          <div class="notification-message">${message}</div>
+        </div>
+        <button class="notification-close" onclick="this.parentElement.remove()">&times;</button>
+      `;
+      
+      container.appendChild(notification);
+      
+      setTimeout(() => {
+        if (notification.parentElement) {
+          notification.style.animation = 'slideInRight 0.4s ease-out reverse';
+          setTimeout(() => notification.remove(), 400);
+        }
+      }, 3000);
+    }
+
+    // Sign out
+    async function handleSignOut() {
+      try {
+        await auth.signOut();
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('currentUser');
+        localStorage.removeItem('currentUserId');
+        showNotification('Logged Out', 'You have been successfully logged out', 'info');
+      } catch (error) {
+        console.error('Error signing out:', error);
+      }
+    }
+
+    // Save car to dashboard
+    async function saveCar(formData, price) {
+      const userId = localStorage.getItem('currentUserId');
+      if (!userId) {
+        showNotification('Login Required', 'Please login to save cars', 'error');
+        return;
+      }
+      
+      const carData = {
+        company: formData.get('Company'),
+        model: formData.get('Model'),
+        year: formData.get('Year'),
+        fuelType: formData.get('Fuel_Type_Petrol'),
+        kms: parseInt(formData.get('Kms_Driven')),
+        price: price,
+        date: new Date().toLocaleDateString(),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      try {
+        await db.collection('users').doc(userId).collection('savedCars').add(carData);
+        showNotification('Car Saved! 🚗', 'Car prediction saved to your dashboard');
+      } catch (error) {
+        console.error('Error saving car:', error);
+        showNotification('Error', 'Failed to save car. Please try again.', 'error');
+      }
+    }
+
+    // Form submission
+    document.getElementById('predictForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const formData = new FormData(this);
+      const resultDiv = document.getElementById('prediction-result');
+      
+      resultDiv.className = 'prediction-result waiting';
+      resultDiv.textContent = 'Calculating price...';
+      
+      try {
+        const response = await fetch('/api/predict', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          resultDiv.className = 'prediction-result waiting';
+          resultDiv.textContent = 'Error: ' + data.error;
+        } else {
+          resultDiv.className = 'prediction-result result';
+          
+          let resultHTML = '<div class="prediction-main">';
+          resultHTML += `<div style="font-size: 2rem; font-weight: 900; color: #00ffcc; margin-bottom: 15px;">${data.formatted_price}</div>`;
+          
+          if (data.confidence === 'high') {
+            resultHTML += '<div style="display: inline-block; padding: 8px 16px; background: rgba(0, 255, 204, 0.2); border: 1px solid #00ffcc; border-radius: 20px; color: #00ffcc; font-size: 14px; font-weight: 600; margin-bottom: 15px;">🎯 High Confidence</div>';
+          } else if (data.confidence === 'low') {
+            resultHTML += '<div style="display: inline-block; padding: 8px 16px; background: rgba(255, 77, 77, 0.2); border: 1px solid #ff4d4d; border-radius: 20px; color: #ff4d4d; font-size: 14px; font-weight: 600; margin-bottom: 15px;">⚠️ Low Confidence</div>';
+          }
+          
+          resultHTML += `<div style="color: #9fb9d6; font-size: 14px; margin-bottom: 20px;">Price Range: <span style="color: #eaf6ff; font-weight: 700;">₹${data.low_range.toLocaleString()} - ₹${data.high_range.toLocaleString()}</span></div>`;
+          
+          // Display ex-showroom price and price decrease if available
+          if (data.exshowroom_price && data.formatted_exshowroom) {
+            const priceDecrease = data.price_decrease || 0;
+            const priceDecreasePercent = data.price_decrease_percent || 0;
+            const formattedDecrease = priceDecrease.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+            
+            // Get the purchase year from form data
+            const purchaseYear = document.getElementById('year').value || 'purchase';
+            
+            resultHTML += '<div style="margin-top: 20px; padding: 15px; background: rgba(0, 220, 255, 0.1); border: 1px solid rgba(0, 220, 255, 0.3); border-radius: 8px; margin-bottom: 20px;">';
+            resultHTML += '<div style="color: #00ffcc; font-weight: 700; margin-bottom: 10px; font-size: 14px;">💰 Price Comparison:</div>';
+            resultHTML += `<div style="color: #9fb9d6; font-size: 13px; margin-bottom: 6px;">Ex-Showroom Price (${purchaseYear}): <span style="color: #eaf6ff; font-weight: 600;">${data.formatted_exshowroom}</span></div>`;
+            resultHTML += `<div style="color: #9fb9d6; font-size: 13px; margin-bottom: 6px;">Current Market Price (${new Date().getFullYear()}): <span style="color: #eaf6ff; font-weight: 600;">${data.formatted_price}</span></div>`;
+            if (priceDecrease > 0) {
+              resultHTML += `<div style="color: #ff6b6b; font-size: 13px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 107, 107, 0.2);">`;
+              resultHTML += `<span style="font-weight: 700;">Price Decreased: ₹${formattedDecrease} (${priceDecreasePercent.toFixed(1)}%)</span>`;
+              resultHTML += `</div>`;
+            }
+            resultHTML += '</div>';
+            
+            // Add external price verification links
+            const company = document.getElementById('company').value || '';
+            const model = document.getElementById('model').value || '';
+            const searchQuery = encodeURIComponent(`${company} ${model}`.trim());
+            
+            if (company && model) {
+              resultHTML += '<div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0, 220, 255, 0.2);">';
+              resultHTML += '<div style="color: #00ffcc; font-weight: 700; margin-bottom: 10px; font-size: 13px;">🔗 Verify Price on:</div>';
+              resultHTML += '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">';
+              
+              // CarDekho
+              const cardekhoUrl = `https://www.cardekho.com/cars/${searchQuery}`;
+              resultHTML += `<a href="${cardekhoUrl}" target="_blank" rel="noopener noreferrer" class="price-link" style="display: inline-flex; align-items: center; padding: 8px 14px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 6px; color: #00ffcc; text-decoration: none; font-size: 12px; font-weight: 600; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0, 255, 204, 0.25)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(0, 255, 204, 0.15)'; this.style.transform='translateY(0)';" title="Check price on CarDekho">`;
+              resultHTML += `<i class="fas fa-external-link-alt" style="margin-right: 6px; font-size: 10px;"></i> CarDekho`;
+              resultHTML += `</a>`;
+              
+              // CarWale
+              const carwaleUrl = `https://www.carwale.com/search/${searchQuery}`;
+              resultHTML += `<a href="${carwaleUrl}" target="_blank" rel="noopener noreferrer" class="price-link" style="display: inline-flex; align-items: center; padding: 8px 14px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 6px; color: #00ffcc; text-decoration: none; font-size: 12px; font-weight: 600; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0, 255, 204, 0.25)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(0, 255, 204, 0.15)'; this.style.transform='translateY(0)';" title="Check price on CarWale">`;
+              resultHTML += `<i class="fas fa-external-link-alt" style="margin-right: 6px; font-size: 10px;"></i> CarWale`;
+              resultHTML += `</a>`;
+              
+              // ZigWheels
+              const zigwheelsUrl = `https://www.zigwheels.com/newcars/${searchQuery}`;
+              resultHTML += `<a href="${zigwheelsUrl}" target="_blank" rel="noopener noreferrer" class="price-link" style="display: inline-flex; align-items: center; padding: 8px 14px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 6px; color: #00ffcc; text-decoration: none; font-size: 12px; font-weight: 600; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0, 255, 204, 0.25)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(0, 255, 204, 0.15)'; this.style.transform='translateY(0)';" title="Check price on ZigWheels">`;
+              resultHTML += `<i class="fas fa-external-link-alt" style="margin-right: 6px; font-size: 10px;"></i> ZigWheels`;
+              resultHTML += `</a>`;
+              
+              // AutoCar India
+              const autocarUrl = `https://www.autocarindia.com/search?q=${searchQuery}`;
+              resultHTML += `<a href="${autocarUrl}" target="_blank" rel="noopener noreferrer" class="price-link" style="display: inline-flex; align-items: center; padding: 8px 14px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 6px; color: #00ffcc; text-decoration: none; font-size: 12px; font-weight: 600; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0, 255, 204, 0.25)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(0, 255, 204, 0.15)'; this.style.transform='translateY(0)';" title="Check price on AutoCar India">`;
+              resultHTML += `<i class="fas fa-external-link-alt" style="margin-right: 6px; font-size: 10px;"></i> AutoCar`;
+              resultHTML += `</a>`;
+              
+              // 91Wheels
+              const wheels91Url = `https://www.91wheels.com/cars/${searchQuery}`;
+              resultHTML += `<a href="${wheels91Url}" target="_blank" rel="noopener noreferrer" class="price-link" style="display: inline-flex; align-items: center; padding: 8px 14px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 6px; color: #00ffcc; text-decoration: none; font-size: 12px; font-weight: 600; transition: all 0.3s ease;" onmouseover="this.style.background='rgba(0, 255, 204, 0.25)'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='rgba(0, 255, 204, 0.15)'; this.style.transform='translateY(0)';" title="Check price on 91Wheels">`;
+              resultHTML += `<i class="fas fa-external-link-alt" style="margin-right: 6px; font-size: 10px;"></i> 91Wheels`;
+              resultHTML += `</a>`;
+              
+              resultHTML += '</div>';
+              resultHTML += '<div style="color: #9fb9d6; font-size: 11px; margin-top: 8px; font-style: italic;">Compare our prediction with market prices on these trusted platforms</div>';
+              resultHTML += '</div>';
+            }
+          }
+          
+          if (data.tips && data.tips.length > 0) {
+            resultHTML += '<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(0, 220, 255, 0.2);">';
+            resultHTML += '<div style="color: #00ffcc; font-weight: 700; margin-bottom: 12px;">💡 Insights:</div>';
+            data.tips.forEach(tip => {
+              resultHTML += `<div style="color: #9fb9d6; font-size: 13px; margin-bottom: 8px; line-height: 1.6;">${tip}</div>`;
+            });
+            resultHTML += '</div>';
+          }
+          
+          // Display car features in a cool way
+          if (data.car_features && Object.keys(data.car_features).length > 0) {
+            resultHTML += '<div id="car-features-section" style="margin-top: 25px; padding-top: 25px; border-top: 1px solid rgba(0, 220, 255, 0.2); text-align: left;">';
+            resultHTML += '<div style="color: #00ffcc; font-weight: 700; margin-bottom: 15px; font-size: 15px; text-align: left;">🚗 Car Features & Specifications:</div>';
+            
+            const features = data.car_features;
+            
+            // Feature icons mapping
+            const featureIcons = {
+              'displacement': '⚙️',
+              'power': '⚡',
+              'torque': '🔧',
+              'body_type': '🚙',
+              'seating_capacity': '👥',
+              'fuel_tank_capacity': '⛽',
+              'arai_certified_mileage': '📊',
+              'gears': '⚙️',
+              'type': '🔀',
+              'boot_space': '🧳',
+              'ground_clearance': '⬆️',
+              'wheelbase': '📏',
+              'height': '📐',
+              'length': '📏',
+              'width': '📐',
+              'cylinders': '🔩',
+              'abs': '🛡️',
+              'airbags': '💺',
+              'power_steering': '🎯',
+              'power_windows': '🪟',
+              'central_locking': '🔒',
+              'bluetooth': '📱',
+              'usb_compatibility': '🔌',
+              'android_auto': '🤖',
+              'apple_carplay': '🍎',
+              'cruise_control': '🛣️',
+              'parking_assistance': '🅿️',
+              'navigation_system': '🗺️'
+            };
+            
+            // Feature labels mapping
+            const featureLabels = {
+              'displacement': 'Engine Displacement',
+              'power': 'Power',
+              'torque': 'Torque',
+              'body_type': 'Body Type',
+              'seating_capacity': 'Seating Capacity',
+              'fuel_tank_capacity': 'Fuel Tank',
+              'arai_certified_mileage': 'Mileage (ARAI)',
+              'gears': 'Gears',
+              'type': 'Transmission',
+              'boot_space': 'Boot Space',
+              'ground_clearance': 'Ground Clearance',
+              'wheelbase': 'Wheelbase',
+              'height': 'Height',
+              'length': 'Length',
+              'width': 'Width',
+              'cylinders': 'Cylinders'
+            };
+            
+            // Group features into categories
+            const engineFeatures = ['displacement', 'cylinders', 'power', 'torque'];
+            const dimensionFeatures = ['height', 'length', 'width', 'wheelbase', 'ground_clearance'];
+            const comfortFeatures = ['seating_capacity', 'boot_space', 'body_type', 'type', 'gears', 'fuel_tank_capacity', 'arai_certified_mileage'];
+            const safetyFeatures = ['abs', 'airbags'];
+            const techFeatures = ['power_steering', 'power_windows', 'central_locking', 'bluetooth', 'usb_compatibility', 'android_auto', 'apple_carplay', 'cruise_control', 'parking_assistance', 'navigation_system'];
+            
+            // Display engine features
+            const engineF = engineFeatures.filter(f => features[f]);
+            if (engineF.length > 0) {
+              resultHTML += '<div style="margin-bottom: 15px; text-align: left;">';
+              resultHTML += '<div style="color: #45f3ff; font-weight: 600; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">⚙️ Engine & Performance</div>';
+              resultHTML += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; justify-items: start;">';
+              engineF.forEach(feature => {
+                const icon = featureIcons[feature] || '📋';
+                const label = featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const value = features[feature];
+                resultHTML += `<div style="padding: 10px; background: rgba(69, 243, 255, 0.1); border: 1px solid rgba(69, 243, 255, 0.2); border-radius: 6px;">`;
+                resultHTML += `<div style="color: #9fb9d6; font-size: 11px; margin-bottom: 4px;">${icon} ${label}</div>`;
+                resultHTML += `<div style="color: #eaf6ff; font-weight: 600; font-size: 12px;">${value}</div>`;
+                resultHTML += `</div>`;
+              });
+              resultHTML += '</div></div>';
+            }
+            
+            // Display dimension features
+            const dimF = dimensionFeatures.filter(f => features[f]);
+            if (dimF.length > 0) {
+              resultHTML += '<div style="margin-bottom: 15px; text-align: left;">';
+              resultHTML += '<div style="color: #45f3ff; font-weight: 600; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">📐 Dimensions</div>';
+              resultHTML += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; justify-items: start;">';
+              dimF.forEach(feature => {
+                const icon = featureIcons[feature] || '📋';
+                const label = featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const value = features[feature];
+                resultHTML += `<div style="padding: 10px; background: rgba(69, 243, 255, 0.1); border: 1px solid rgba(69, 243, 255, 0.2); border-radius: 6px;">`;
+                resultHTML += `<div style="color: #9fb9d6; font-size: 11px; margin-bottom: 4px;">${icon} ${label}</div>`;
+                resultHTML += `<div style="color: #eaf6ff; font-weight: 600; font-size: 12px;">${value}</div>`;
+                resultHTML += `</div>`;
+              });
+              resultHTML += '</div></div>';
+            }
+            
+            // Display comfort features
+            const comfortF = comfortFeatures.filter(f => features[f]);
+            if (comfortF.length > 0) {
+              resultHTML += '<div style="margin-bottom: 15px; text-align: left;">';
+              resultHTML += '<div style="color: #45f3ff; font-weight: 600; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">🛋️ Comfort & Convenience</div>';
+              resultHTML += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; justify-items: start;">';
+              comfortF.forEach(feature => {
+                const icon = featureIcons[feature] || '📋';
+                const label = featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const value = features[feature];
+                resultHTML += `<div style="padding: 10px; background: rgba(69, 243, 255, 0.1); border: 1px solid rgba(69, 243, 255, 0.2); border-radius: 6px;">`;
+                resultHTML += `<div style="color: #9fb9d6; font-size: 11px; margin-bottom: 4px;">${icon} ${label}</div>`;
+                resultHTML += `<div style="color: #eaf6ff; font-weight: 600; font-size: 12px;">${value}</div>`;
+                resultHTML += `</div>`;
+              });
+              resultHTML += '</div></div>';
+            }
+            
+            // Display safety features
+            const safetyF = safetyFeatures.filter(f => features[f]);
+            if (safetyF.length > 0) {
+              resultHTML += '<div style="margin-bottom: 15px; text-align: left;">';
+              resultHTML += '<div style="color: #45f3ff; font-weight: 600; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">🛡️ Safety Features</div>';
+              resultHTML += '<div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start;">';
+              safetyF.forEach(feature => {
+                const icon = featureIcons[feature] || '✅';
+                const label = featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                resultHTML += `<div style="padding: 8px 12px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 20px; font-size: 12px; color: #00ffcc;">${icon} ${label}</div>`;
+              });
+              resultHTML += '</div></div>';
+            }
+            
+            // Display tech features
+            const techF = techFeatures.filter(f => features[f]);
+            if (techF.length > 0) {
+              resultHTML += '<div style="margin-bottom: 15px; text-align: left;">';
+              resultHTML += '<div style="color: #45f3ff; font-weight: 600; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; text-align: left;">📱 Technology & Connectivity</div>';
+              resultHTML += '<div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start;">';
+              techF.forEach(feature => {
+                const icon = featureIcons[feature] || '✅';
+                const label = featureLabels[feature] || feature.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                resultHTML += `<div style="padding: 8px 12px; background: rgba(0, 255, 204, 0.15); border: 1px solid rgba(0, 255, 204, 0.3); border-radius: 20px; font-size: 12px; color: #00ffcc;">${icon} ${label}</div>`;
+              });
+              resultHTML += '</div></div>';
+            }
+            
+            resultHTML += '</div>';
+          }
+          
+          resultHTML += '</div>';
+          resultDiv.innerHTML = resultHTML;
+          
+          // Save prediction data to localStorage for persistence
+          const predictionData = {
+            data: data,
+            formData: {
+              company: formData.get('Company'),
+              model: formData.get('Model'),
+              year: formData.get('Year'),
+              fuelType: formData.get('Fuel_Type_Petrol'),
+              kmsDriven: formData.get('Kms_Driven')
+            },
+            timestamp: Date.now()
+          };
+          localStorage.setItem('lastPrediction', JSON.stringify(predictionData));
+          
+          // Add save button
+          const saveContainer = document.getElementById('save-button-container');
+          const userId = localStorage.getItem('currentUserId');
+          if (userId) {
+            saveContainer.innerHTML = `
+              <button onclick="saveCar(new FormData(document.getElementById('predictForm')), '${data.formatted_price}')" 
+                      style="margin-top: 20px; padding: 12px 24px; background: rgba(69, 243, 255, 0.2); border: 1px solid rgba(69, 243, 255, 0.5); color: #45f3ff; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; width: 100%;">
+                <i class="fas fa-bookmark"></i> Save to Dashboard
+              </button>
+            `;
+          }
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        resultDiv.className = 'prediction-result waiting';
+        resultDiv.textContent = 'Error: Unable to get prediction';
+      }
+    });
+
+    // Event listeners
+    // Dropdown dependencies are handled by selectCompany and selectModel functions
+
+    // Notification system
+    function showNotification(title, message, type = 'success') {
+      const container = document.getElementById('notification-container');
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      
+      const icons = {
+        success: '🚗',
+        error: '❌',
+        info: 'ℹ️'
+      };
+      
+      notification.innerHTML = `
+        <div class="notification-icon">${icons[type] || icons.success}</div>
+        <div class="notification-content">
+          <div class="notification-title">${title}</div>
+          <div class="notification-message">${message}</div>
+        </div>
+        <button class="notification-close" onclick="this.parentElement.remove()">&times;</button>
+      `;
+      
+      container.appendChild(notification);
+      
+      setTimeout(() => {
+        if (notification.parentElement) {
+          notification.style.animation = 'slideInRight 0.4s ease-out reverse';
+          setTimeout(() => notification.remove(), 400);
+        }
+      }, 3000);
+    }
+
+    // Save car to dashboard
+    async function saveCar(formData, price) {
+      const userId = localStorage.getItem('currentUserId');
+      if (!userId) {
+        showNotification('Login Required', 'Please login to save cars', 'error');
+        return;
+      }
+      
+      const carData = {
+        company: formData.get('Company'),
+        model: formData.get('Model'),
+        year: formData.get('Year'),
+        fuelType: formData.get('Fuel_Type_Petrol'),
+        kms: parseInt(formData.get('Kms_Driven')),
+        price: price,
+        date: new Date().toLocaleDateString(),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      try {
+        await db.collection('users').doc(userId).collection('savedCars').add(carData);
+        showNotification('Car Saved! 🚗', 'Car prediction saved to your dashboard');
+      } catch (error) {
+        console.error('Error saving car:', error);
+        showNotification('Error', 'Failed to save car. Please try again.', 'error');
+      }
+    }
+
+    // Function to update navigation based on auth state
+    function updateNavigation() {
+      const loginLink = document.getElementById('login-link');
+      const dashboardLink = document.getElementById('dashboard-link');
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+      
+      if (loginLink && dashboardLink) {
+        if (isLoggedIn) {
+          loginLink.style.display = 'none';
+          dashboardLink.style.display = 'flex';
+        } else {
+          loginLink.style.display = 'flex';
+          dashboardLink.style.display = 'none';
+        }
+      }
+    }
+
+    // Theme management
+    function changeTheme(themeName) {
+      if (document.body) {
+        document.body.classList.remove('dark-mode', 'light-mode', 'neon-mode');
+        document.body.classList.add(`${themeName}-mode`);
+      }
+      
+      // Update active state in dropdown (only if theme selector exists)
+      const themeOptions = document.querySelectorAll('.theme-option');
+      if (themeOptions.length > 0) {
+        themeOptions.forEach(option => {
+          option.classList.remove('active');
+        });
+        const activeOption = document.querySelector(`.theme-option[data-theme="${themeName}"]`);
+        if (activeOption) {
+          activeOption.classList.add('active');
+        }
+      }
+      
+      localStorage.setItem('selectedTheme', themeName);
+    }
+
+
+    // Set active navigation link based on current page
+    function setActiveNavLink() {
+      const nav = document.querySelector('.top-nav');
+      if (!nav) return;
+      
+      const currentPath = window.location.pathname.toLowerCase().replace(/\/$/, '') || '/';
+      const navLinks = nav.querySelectorAll('a');
+      
+      // Remove active class from all links
+      navLinks.forEach(link => {
+        link.classList.remove('active');
+      });
+      
+      // Find and set active link based on pathname
+      navLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (!href) return;
+        
+        const hrefPath = href.toLowerCase().replace(/\/$/, '') || '/';
+        const isVisible = link.offsetParent !== null && 
+                         window.getComputedStyle(link).display !== 'none';
+        
+        if (!isVisible) return;
+        
+        // Exact path matching (highest priority)
+        if (hrefPath === currentPath) {
+          link.classList.add('active');
+          return;
+        }
+        
+        // Special case for home page - only match if currentPath is exactly '/' or ''
+        if (currentPath === '/' || currentPath === '') {
+          if (hrefPath === '/' || hrefPath === '' || href === '/') {
+            link.classList.add('active');
+            return;
+          }
+        }
+        
+        // Match /app with dashboard link
+        if (currentPath === '/app' && hrefPath === '/app') {
+          link.classList.add('active');
+          return;
+        }
+      });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      // Update navigation IMMEDIATELY from localStorage (fast check)
+      updateNavigation();
+      setActiveNavLink();
+      
+      // Load dropdown data
+      loadCompanies();
+      loadYears();
+      
+      // Setup dropdown handlers after a short delay to ensure menus are populated
+      setTimeout(() => {
+        setupDropdownHandlers();
+        // Restore saved prediction after dropdowns are loaded
+        restoreSavedPrediction();
+      }, 500);
+      
+      // Load saved theme
+      const savedTheme = localStorage.getItem('selectedTheme') || 'dark';
+      changeTheme(savedTheme);
+      
+      // Check auth state - this fires immediately with current state
+      auth.onAuthStateChanged((user) => {
+        if (user) {
+          localStorage.setItem('isLoggedIn', 'true');
+          localStorage.setItem('currentUser', user.email);
+          localStorage.setItem('currentUserId', user.uid);
+        } else {
+          // Only clear localStorage if user is actually signed out
+          // Don't clear if it's just Firebase initializing
+          if (!localStorage.getItem('isLoggedIn')) {
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('currentUserId');
+          }
+        }
+        updateNavigation();
+        setActiveNavLink();
+      });
+    });
+  </script>
+
+  <!-- Three.js Shader-Based Particle Background -->
+  <script>
+    const particleVertex = `
+      attribute float scale;
+      uniform float uTime;
+      void main() {
+        vec3 p = position;
+        float s = scale;
+        p.y += (sin(p.x + uTime) * 0.5) + (cos(p.y + uTime) * 0.1) * 2.0;
+        p.x += (sin(p.y + uTime) * 0.5);
+        s += (sin(p.x + uTime) * 0.5) + (cos(p.y + uTime) * 0.1) * 2.0;
+        vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = s * 15.0 * (1.0 / -mvPosition.z);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `;
+
+    const particleFragment = `
+      void main() {
+        gl_FragColor = vec4(1.0, 1.0, 1.0, 0.5);
+      }
+    `;
+
+    function lerp(start, end, amount) {
+      return (1 - amount) * start + amount * end;
+    }
+
+    class Canvas {
+      constructor() {
+        this.config = {
+          canvas: document.querySelector('#c'),
+          winWidth: window.innerWidth,
+          winHeight: window.innerHeight,
+          aspectRatio: window.innerWidth / window.innerHeight,
+          mouse: new THREE.Vector2(-10, -10)
+        };
+        this.onResize = this.onResize.bind(this);
+        this.onMouseMove = this.onMouseMove.bind(this);
+        this.animate = this.animate.bind(this);
+        this.initCamera();
+        this.initScene();
+        this.initRenderer();
+        this.initParticles();
+        this.bindEvents();
+        this.animate();
+      }
+
+      bindEvents() {
+        window.addEventListener('resize', this.onResize);
+        window.addEventListener('mousemove', this.onMouseMove, false);
+      }
+
+      initCamera() {
+        this.camera = new THREE.PerspectiveCamera(75, this.config.aspectRatio, 0.01, 1000);
+        this.camera.position.set(0, 6, 5);
+      }
+
+      initControls() {
+        this.controls = new OrbitControls(this.camera, this.config.canvas);
+      }
+
+      initScene() {
+        this.scene = new THREE.Scene();
+      }
+
+      initRenderer() {
+        this.renderer = new THREE.WebGLRenderer({
+          canvas: this.config.canvas,
+          antialias: true
+        });
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setSize(this.config.winWidth, this.config.winHeight);
+      }
+
+      initParticles() {
+        const gap = 0.3;
+        const amountX = 200;
+        const amountY = 200;
+        const particleNum = amountX * amountY;
+        const particlePositions = new Float32Array(particleNum * 3);
+        const particleScales = new Float32Array(particleNum);
+        let i = 0;
+        let j = 0;
+        for (let ix = 0; ix < amountX; ix++) {
+          for (let iy = 0; iy < amountY; iy++) {
+            particlePositions[i] = ix * gap - ((amountX * gap) / 2);
+            particlePositions[i + 1] = 0;
+            particlePositions[i + 2] = iy * gap - ((amountX * gap) / 2);
+            particleScales[j] = 1;
+            i += 3;
+            j++;
+          }
+        }
+        this.particleGeometry = new THREE.BufferGeometry();
+        this.particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+        this.particleGeometry.setAttribute('scale', new THREE.BufferAttribute(particleScales, 1));
+        this.particleMaterial = new THREE.ShaderMaterial({
+          transparent: true,
+          vertexShader: particleVertex,
+          fragmentShader: particleFragment,
+          uniforms: {
+            uTime: { type: 'f', value: 0 }
+          }
+        });
+        this.particles = new THREE.Points(this.particleGeometry, this.particleMaterial);
+        this.scene.add(this.particles);
+      }
+
+      render() {
+        this.camera.lookAt(this.scene.position);
+        this.renderer.render(this.scene, this.camera);
+      }
+
+      animate() {
+        this.particleMaterial.uniforms.uTime.value += 0.05;
+        requestAnimationFrame(this.animate.bind(this));
+        this.render();
+      }
+
+      onMouseMove(e) {
+        this.config.mouse.x = ( e.clientX / window.innerWidth ) * 2 - 1;
+        this.config.mouse.y = - ( e.clientY / window.innerHeight ) * 2 + 1;
+      }
+
+      onResize() {
+        this.config.winWidth = window.innerWidth;
+        this.config.winHeight = window.innerHeight;
+        this.camera.aspect = this.config.winWidth / this.config.winHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(this.config.winWidth, this.config.winHeight);
+      }
+    }
+
+    if (typeof THREE !== 'undefined') {
+      new Canvas();
+    }
+  </script>
+</body>
+</html>
+
